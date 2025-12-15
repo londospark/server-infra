@@ -1,10 +1,13 @@
 # Homelab Server Infrastructure
 
-A collection of automation tools and configurations for building and managing a homelab server infrastructure. Each subfolder contains its own README with detailed setup instructions.
+A collection of automation tools and configurations for building and managing a homelab server infrastructure with Proxmox VE. This project automates the complete setup from ISO creation to infrastructure-as-code readiness.
 
 ## Project Structure
 
-- **00-proxmox-installer**: Automated Proxmox VE ISO builder with pre-configured installation answers
+- **[00-proxmox-installer](./00-proxmox-installer/README.md)** - Automated Proxmox VE ISO builder with pre-configured installation answers
+- **[01-post-boot-ansible](./01-post-boot-ansible/README.md)** - Post-installation bootstrap for SSH access, Terraform integration, and repository setup
+
+Each folder contains its own README with detailed setup instructions.
 
 ## Platform Support
 
@@ -129,6 +132,49 @@ If you're on Windows, install and use **WSL2 (Windows Subsystem for Linux)**:
 4. Follow the Quick Start guide above within your WSL2 terminal
 5. For flashing the ISO to USB, you can use Balena Etcher on Windows while keeping your build tools in WSL2
    - The generated ISO file can be accessed from Windows via: `\\wsl$\<distro-name>\home\<username>\<path-to-cloned-repo>\00-proxmox-installer\proxmox-headless.iso`
+
+## Work Completed
+
+This project implements a complete Proxmox VE infrastructure automation pipeline:
+
+1. **ISO Automation** - Docker-based ISO builder downloads latest Proxmox VE, embeds pre-configured answers (`answer.toml`), and produces a headless-ready installation image
+2. **Ansible Bootstrap** - Post-boot playbook that:
+   - Installs SSH public key for key-based authentication
+   - Creates dedicated Terraform user with appropriate role and permissions
+   - Generates API token for infrastructure provisioning
+   - Switches from enterprise to community repository (no subscriptions required)
+3. **Environment Management** - direnv integration for secure credential and variable management
+4. **Cross-Platform Support** - Works on macOS, Linux, and Windows (via WSL2)
+
+## Known Gotchas & Important Notes
+
+### direnv Must Be Allowed First
+- `.envrc` must be processed with `direnv allow` before running any builds or playbooks
+- Docker Compose depends on `UID` and `GID` variables from `.envrc` - builds will fail silently without them
+- Environment variables are not inherited by child shells if direnv is not hooked into your shell
+
+### Proxmox Installation Answers
+- The `answer.toml` in `00-proxmox-installer` uses static network configuration (`source = "from-answer"`)
+- Network settings (`cidr`, `gateway`, `filter.ID_NET_NAME_MAC`) are placeholders and must be filled in `.envrc` before building
+- Root password placeholder in `answer.toml` is replaced by `PROXMOX_PASS` environment variable
+- ZFS RAID configuration in `answer.toml` requires multiple disks; adjust `disk_list` and `zfs.raid` for your hardware
+
+### Ansible Bootstrap Notes
+- Initial SSH connection uses password authentication (requires `PROXMOX_PASS` and `PROXMOX_HOST`)
+- SSH key generation (`ssh-keygen`) must complete before running the playbook
+- API token is automatically appended to `.envrc` - you must run `direnv allow` again after the playbook completes
+- The playbook modifies `.envrc` directly; back it up if you have custom additions
+
+### USB Flashing
+- Ensure USB stick is at least 8GB
+- On Linux with `dd`, use the device (`/dev/sdX`), not the partition (`/dev/sdX1`)
+- macOS users should use `rdiskX` for `dd` (faster) instead of `diskX`
+- Windows users building in WSL2 can access the ISO via UNC path: `\\wsl$\<distro>\home\<user>\path\to\proxmox-headless.iso`
+
+### Repository Transitions
+- Proxmox defaults to enterprise repository (requires valid subscription)
+- The Ansible playbook includes `02-remove-enterprise.yml` to switch to community repo automatically
+- If you have a subscription, you can skip this step or customize the playbook
 
 ## License
 

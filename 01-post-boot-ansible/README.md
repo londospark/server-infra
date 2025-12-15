@@ -1,6 +1,8 @@
 # Proxmox Bootstrap with Ansible
 
-This playbook automates the post-installation bootstrap of Proxmox VE for use with Terraform. It creates a dedicated user, role, and API token with the necessary permissions.
+This playbook automates the post-installation bootstrap of Proxmox VE for use with Terraform. It creates a dedicated user, role, and API token with the necessary permissions, and configures the system to use the community repository (no subscription required).
+
+> **Part of**: server-infra infrastructure automation suite. See the [main README](../README.md) for project overview and common setup.
 
 ## Prerequisites
 
@@ -139,3 +141,10 @@ direnv allow
 ## Next Steps
 
 Once the Terraform token is loaded in your `.envrc`, you can proceed with Terraform provisioning. The `TF_VAR_proxmox_api_endpoint` and `TF_VAR_proxmox_api_token` variables are now ready for use.
+
+## Important Notes
+
+- **`.envrc` Modification**: The playbook appends the generated API token to `.envrc`. Always back up your `.envrc` before running the playbook if it contains custom values.
+- **direnv Reload Required**: After the playbook completes, you must run `direnv allow` in the repository root to load the new token.
+- **Enterprise Repository**: This playbook includes `02-remove-enterprise.yml` which removes the enterprise repository and adds the community repo. If you have a valid Proxmox subscription, you can skip this step by commenting it out in `site.yml`.
+- **Password Authentication**: The initial connection uses password authentication. Ensure `PROXMOX_PASS` is accurate and SSH keys have been generated beforehand.

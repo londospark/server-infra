@@ -2,6 +2,8 @@
 
 This project automates the creation of a custom Proxmox VE ISO with pre-configured installation answers baked in. The Docker container downloads the latest Proxmox VE ISO, embeds your `answer.toml` configuration, and produces a headless-ready installation image that can be flashed to a USB stick.
 
+> **Part of**: server-infra infrastructure automation suite. See the [main README](../README.md) for project overview and common setup.
+
 ## Prerequisites
 
 Before running this project, ensure you have the following installed:
@@ -20,30 +22,13 @@ Your environment variables are managed by direnv through the `.envrc` file in th
 
 ## Configuration
 
-The `answer.toml` file contains the Proxmox VE installation answers. Customize this file before building:
+The `answer.toml` file contains the Proxmox VE installation configuration. Some values are placeholders that are replaced from environment variables at build time:
 
-```toml
-[global]
-keyboard = "en-gb"        # Keyboard layout
-country = "gb"            # Country code
-fqdn = "pve.home.lan"     # Fully qualified domain name
-mailto = "admin@home.lan"  # Admin email
-timezone = "Europe/London" # Your timezone
-root_password = "ChangeMe123!"  # Placeholder - root password is set in .envrc
-reboot_on_error = true
+- Network settings (`cidr`, `gateway`, `filter.ID_NET_NAME_MAC`) are filled from `.envrc`
+- Root password is controlled by the `PROXMOX_PASS` environment variable
+- Customize keyboard layout, timezone, FQDN, and disk configuration as needed for your environment
 
-[network]
-source = "from-dhcp"      # Use DHCP or "from-iso" for static config
-
-[disk-setup]
-filesystem = "zfs"        # Filesystem type (zfs, ext4, etc.)
-zfs.raid = "raid0"        # RAID level (raid0, raid1, raid10)
-zfs.ashift = 12           # ZFS ashift value
-zfs.compress = "on"       # Enable compression
-disk_list = ["sda"]       # Disk(s) to install to
-```
-
-> **Note**: The root password shown above is a placeholder. The actual password used during Proxmox installation is controlled by the `PROXMOX_PASS` variable defined in the `.envrc` file at the repository root.
+See `answer.toml` in this directory for the full configuration.
 
 ## Running the Docker Container
 
@@ -209,6 +194,14 @@ If you're using Windows, use **Balena Etcher** to flash the ISO:
 - [Proxmox VE Documentation](https://pve.proxmox.com/pve-docs/)
 - [Proxmox Auto-Install Assistant](https://pve.proxmox.com/wiki/Automated_Installation)
 - [ZFS Documentation](https://openzfs.org/wiki/Main_Page)
+
+## Important Notes
+
+- **direnv Required**: `direnv allow` must be run in the repository root before building. Docker Compose depends on `UID` and `GID` variables.
+- **Static Network Config**: The `answer.toml` uses static IP configuration (`source = "from-answer"`). Network placeholders must be populated in `.envrc` or the install will fail.
+- **Password & Placeholder Values**: The `PROXMOX_PASS`, `cidr`, `gateway`, and `filter.ID_NET_NAME_MAC` placeholders in `answer.toml` are replaced from environment variables at build time.
+- **ZFS Configuration**: Default RAID configuration assumes multiple disks. For single-disk installations, change `zfs.raid = "raid0"` and adjust `disk_list` accordingly.
+- **ISO Size**: The final ISO is typically 800MB+. Ensure adequate disk space and a stable internet connection for downloads.
 
 ## License
 
