@@ -1,6 +1,6 @@
 # Proxmox Bootstrap with Ansible
 
-This playbook automates the post-installation bootstrap of Proxmox VE for use with Terraform. It creates a dedicated user, role, and API token with the necessary permissions, and configures the system to use the community repository (no subscription required).
+This folder contains the post-installation automation for Proxmox VE. It sets up SSH access, creates the Terraform API token, switches to the community repository, configures bridges, and can deploy OPNsense from the nano image (no installer).
 
 > **Part of**: server-infra infrastructure automation suite. See the [main README](../README.md) for project overview and common setup.
 
@@ -38,16 +38,21 @@ Before running this playbook, ensure:
      echo $PROXMOX_PASS
      ```
 
-## What This Playbook Does
+## Playbooks (order of execution)
 
-The `bootstrap_proxmox.yml` playbook performs the following steps:
+1. **01-bootstrap-access.yml** – install SSH key, create Terraform role/user/token, append token to `.envrc`
+2. **02-remove-enterprise.yml** – switch Proxmox to community repo
+3. **03-network-bridges.yml** – ensure `vmbr1` exists (LAN bridge)
+4. **04-deploy-opnsense.yml** – download latest OPNsense nano image, import as VM (WAN=vmbr0, LAN=vmbr1), resize disk, start VM (defaults: LAN 192.168.1.1, creds `root/opnsense`)
 
-1. **Installs your SSH public key** to the Proxmox root user (uses initial password authentication)
-2. **Creates a Terraform Role** with the minimum required privileges for infrastructure provisioning
-3. **Creates a Terraform User** (`terraform-prov@pve`) with a placeholder password
-4. **Binds the user to the role** with global permissions
-5. **Generates an API token** for the Terraform user
-6. **Appends the API token to `.envrc`** in the repository root
+## What the bootstrap playbook does (01)
+
+1. Installs your SSH public key to the Proxmox root user (uses initial password auth)
+2. Creates a Terraform Role with the required privileges
+3. Creates a Terraform User (`terraform-prov@pve`) with a placeholder password
+4. Binds the user to the role with global permissions
+5. Generates an API token for the Terraform user
+6. Appends the API token to `.envrc` in the repository root
 
 ## Running the Playbook
 

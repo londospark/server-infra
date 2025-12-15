@@ -5,7 +5,8 @@ A collection of automation tools and configurations for building and managing a 
 ## Project Structure
 
 - **[00-proxmox-installer](./00-proxmox-installer/README.md)** - Automated Proxmox VE ISO builder with pre-configured installation answers
-- **[01-post-boot-ansible](./01-post-boot-ansible/README.md)** - Post-installation bootstrap for SSH access, Terraform integration, and repository setup
+- **[01-post-boot-ansible](./01-post-boot-ansible/README.md)** - Post-install bootstrap: SSH access, Terraform token, community repo, bridge setup, and OPNsense deployment (nano image, no installer)
+- **[02-terraform](./02-terraform/01-network-layer)** - Proxmox provider wiring; currently describes the OPNsense VM (two virtio NICs, vmbr0/vmbr1) and uses ISO-based install if you choose to apply it
 
 Each folder contains its own README with detailed setup instructions.
 
@@ -113,8 +114,12 @@ This project is designed for **macOS and Linux** systems. Windows users should u
    make help          # Show all available commands
    make deps          # Install Ansible collections and dependencies
    make iso           # Build the Proxmox ISO (Stage 0)
-   make bootstrap     # Run Post-Install Ansible (Stage 1)
-   make all           # Run the full stack from scratch
+   make bootstrap     # Run post-boot Ansible (user/role/token, repo swap)
+   make opnsense      # Deploy OPNsense from nano image (no installer)
+   make tf-init       # (Optional) init Terraform provider
+   make tf-plan       # (Optional) plan Terraform-defined OPNsense VM
+   make tf-apply      # (Optional) apply Terraform-defined OPNsense VM
+   make all           # Full stack: deps + iso + bootstrap + opnsense + infra
    ```
 
 8. Or navigate to the subfolder for what you want to set up:
@@ -141,18 +146,31 @@ If you're on Windows, install and use **WSL2 (Windows Subsystem for Linux)**:
 5. For flashing the ISO to USB, you can use Balena Etcher on Windows while keeping your build tools in WSL2
    - The generated ISO file can be accessed from Windows via: `\\wsl$\<distro-name>\home\<username>\<path-to-cloned-repo>\00-proxmox-installer\proxmox-headless.iso`
 
+## Current Flow
+
+1. **Build ISO**: `make iso` (optional if you already have Proxmox installed)
+2. **Bootstrap host**: `make bootstrap` (SSH key, Terraform API token, community repo, bridges vmbr0/vmbr1)
+3. **Deploy OPNsense**: `make opnsense` (downloads latest nano image, imports as disk, brings up VM on vmbr0/vmbr1; default LAN 192.168.1.1)
+4. **Terraform (optional)**: `make tf-init && make tf-plan` (describes the OPNsense VM via proxmox provider; use if you want IaC management of the VM)
+5. **All-in-one**: `make all` runs deps + iso + bootstrap + opnsense + infra (terraform apply)
+
+### What Terraform Does (today)
+- Configures the Proxmox provider and defines an `opnsense` VM with two virtio NICs (WAN: vmbr0, LAN: vmbr1) and ISO-based install variables.
+- Use it if you prefer the VM to be managed declaratively via Terraform. If you stick with the Ansible nano-image deployment, Terraform is optional—just avoid applying the conflicting VM resource.
+
 ## Work Completed
 
 This project implements a complete Proxmox VE infrastructure automation pipeline:
 
 1. **ISO Automation** - Docker-based ISO builder downloads latest Proxmox VE, embeds pre-configured answers (`answer.toml`), and produces a headless-ready installation image
-2. **Ansible Bootstrap** - Post-boot playbook that:
-   - Installs SSH public key for key-based authentication
-   - Creates dedicated Terraform user with appropriate role and permissions
-   - Generates API token for infrastructure provisioning
-   - Switches from enterprise to community repository (no subscriptions required)
-3. **Environment Management** - direnv integration for secure credential and variable management
-4. **Cross-Platform Support** - Works on macOS, Linux, and Windows (via WSL2)
+2. **Ansible Bootstrap & Network** - Post-boot playbooks that:
+   - Install SSH public key for key-based authentication
+   - Create Terraform role/user/token and switch to community repository
+   - Configure vmbr0/vmbr1 bridges
+   - Deploy OPNsense from the official nano image (no installer)
+3. **Terraform (Optional)** - Proxmox provider configuration describing the OPNsense VM (ISO-based approach) for those who want declarative management
+4. **Environment Management** - direnv integration for secure credential and variable management
+5. **Cross-Platform Support** - Works on macOS, Linux, and Windows (via WSL2)
 
 ## Known Gotchas & Important Notes
 
