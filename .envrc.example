@@ -1,0 +1,16 @@
+# --- HOST CONFIGURATION ---
+# Export current user IDs so Docker Compose (in subfolders) can use them
+export UID=$(id -u)
+export GID=$(id -g)
+
+# --- PROXMOX CONNECTION ---
+export PROXMOX_HOST="{{IP Address of Proxmox Host}}"
+export PROXMOX_USER="root"
+# This acts as a default. Ansible will use this to connect initially.
+export PROXMOX_PASS="{{Initial Root Password of Proxmox Host}}" 
+export PROXMOX_MAC="{{MAC Address of Proxmox Host}}"
+export GATEWAY="{{Gateway IP Address}}"
+
+# --- TERRAFORM CONFIGURATION ---
+export TF_VAR_proxmox_api_endpoint="https://${PROXMOX_HOST}:8006/"
+# The token will be appended below by Ansible...

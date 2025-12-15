@@ -4,11 +4,15 @@ country = "gb"
 fqdn = "pve.home.lan"
 mailto = "admin@home.lan"
 timezone = "Europe/London"
-root_password = "ChangeMe123!"
+root_password = "{{PLACEHOLDER}}"
 reboot_on_error = true
 
 [network]
-source = "from-dhcp"
+source = "from-answer"
+cidr = "{{PLACEHOLDER}}"
+gateway = "{{PLACEHOLDER}}"
+dns = "1.1.1.1"
+filter.ID_NET_NAME_MAC = "{{PLACEHOLDER}}"
 
 [disk-setup]
 filesystem = "zfs"

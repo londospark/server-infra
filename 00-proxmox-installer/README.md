@@ -10,16 +10,10 @@ Before running this project, ensure you have the following installed:
 - **Docker** (version 20.10+)
 - **Docker Compose** (version 2.0+)
   - Installation: [Install Docker Desktop](https://www.docker.com/products/docker-desktop) (includes Compose) or [install separately](https://docs.docker.com/compose/install/)
+- **direnv** - Must have run `direnv allow` in the repository root before building
 
-### Configuration (.env)
-Create or update `.env` with your host user's UID and GID to ensure the generated ISO has correct ownership:
-```env
-UID=1000
-GID=1000
-```
-Find your UID/GID with: `id` (displays your user and group IDs)
-
-### For USB Flashing
+### Environment Setup
+Your environment variables are managed by direnv through the `.envrc` file in the repository root. You must run `direnv allow` before attempting to build the image, otherwise Docker Compose will not have access to required variables like `UID` and `GID`.
 - **Linux/Mac**: Built-in tools (dd, diskutil, or third-party tools)
 - **Windows**: [Rufus](https://rufus.ie/) (recommended) or [Balena Etcher](https://www.balena.io/etcher/)
 - **Alternative (all platforms)**: [Balena Etcher](https://www.balena.io/etcher/) - user-friendly cross-platform tool
@@ -35,7 +29,7 @@ country = "gb"            # Country code
 fqdn = "pve.home.lan"     # Fully qualified domain name
 mailto = "admin@home.lan"  # Admin email
 timezone = "Europe/London" # Your timezone
-root_password = "ChangeMe123!"  # Change this!
+root_password = "ChangeMe123!"  # Placeholder - root password is set in .envrc
 reboot_on_error = true
 
 [network]
@@ -49,9 +43,26 @@ zfs.compress = "on"       # Enable compression
 disk_list = ["sda"]       # Disk(s) to install to
 ```
 
+> **Note**: The root password shown above is a placeholder. The actual password used during Proxmox installation is controlled by the `PROXMOX_PASS` variable defined in the `.envrc` file at the repository root.
+
 ## Running the Docker Container
 
-### Step 1: Build and Run
+### Step 1: Set Up Environment Variables
+
+Ensure you have completed the setup steps in the repository root's README before proceeding. Specifically:
+- Created `.envrc` from `.envrc.example` and filled in your values
+- Run `direnv allow` in the repository root
+
+If you're starting from the root directory:
+
+```bash
+direnv allow
+cd 00-proxmox-installer/
+```
+
+This loads the required `UID` and `GID` variables that Docker Compose needs.
+
+### Step 2: Build and Run
 
 Navigate to this folder and run:
 
@@ -65,7 +76,7 @@ This will:
 3. Embed your `answer.toml` into the ISO
 4. Output `proxmox-headless.iso` in the current directory
 
-### Step 2: Monitor the Build
+### Step 3: Monitor the Build
 
 The container will display progress messages. Once complete, you should see:
 ```
@@ -75,30 +86,6 @@ The container will display progress messages. Once complete, you should see:
 The generated ISO file will be in the current directory and ready to flash.
 
 ## Flashing the ISO to a USB Stick
-
-### Windows
-
-#### Using Rufus (Recommended)
-
-1. Download and launch [Rufus](https://rufus.ie/)
-2. Insert your USB stick (8GB+ recommended)
-3. In Rufus:
-   - **Device**: Select your USB stick
-   - **Boot selection**: Click **SELECT** and choose `proxmox-headless.iso`
-   - **Partition scheme**: MBR
-   - **File system**: ISO 9660
-   - Click **START** and confirm the warning
-4. Wait for completion (~5-10 minutes)
-5. Eject the USB stick safely
-
-#### Using Balena Etcher
-
-1. Download and install [Balena Etcher](https://www.balena.io/etcher/)
-2. Insert your USB stick
-3. Open Balena Etcher and:
-   - Click **Flash from file** and select `proxmox-headless.iso`
-   - Click **Select target** and choose your USB stick
-   - Click **Flash** and wait for completion
 
 ### Linux
 
@@ -137,7 +124,7 @@ The generated ISO file will be in the current directory and ready to flash.
    sudo dnf install balena-etcher
    ```
 
-2. Open Balena Etcher and follow the same steps as Windows (above)
+2. Open Balena Etcher and follow the same steps as macOS (below)
 
 ### macOS
 
@@ -178,6 +165,20 @@ The generated ISO file will be in the current directory and ready to flash.
    ```bash
    diskutil eject /dev/diskX
    ```
+
+### Windows Users
+
+If you're using Windows, use **Balena Etcher** to flash the ISO:
+
+1. Download and install [Balena Etcher](https://www.balena.io/etcher/)
+2. Insert your USB stick
+3. Open Balena Etcher and:
+   - Click **Flash from file** and select `proxmox-headless.iso`
+   - Click **Select target** and choose your USB stick
+   - Click **Flash** and wait for completion
+
+> **Note**: If you're building the ISO in WSL2, the generated `proxmox-headless.iso` file is accessible from Windows. You can navigate to it using `\\wsl$\<distro-name>\home\<username>\<path-to-cloned-repo>\00-proxmox-installer\proxmox-headless.iso`
+> where `<path-to-cloned-repo>` is the directory path where you cloned the repository inside WSL2.
 
 ## Booting from the USB Stick
 

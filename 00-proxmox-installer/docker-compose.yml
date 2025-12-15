@@ -10,3 +10,8 @@ services:
     environment:
       - OUTPUT_UID=${UID:-1000}
       - OUTPUT_GID=${GID:-1000}
+      - PROXMOX_PASS=${PROXMOX_PASS}
+      - PROXMOX_HOST=${PROXMOX_HOST}
+      - PROXMOX_MAC=${PROXMOX_MAC}
+      - GATEWAY=${GATEWAY}
+

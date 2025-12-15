@@ -1,0 +1,23 @@
+#!/bin/sh
+
+if [ -z "$PROXMOX_HOST" ]; then
+    echo "ERROR: PROXMOX_HOST environment variable is missing!" >&2
+    echo "Fix: Run 'direnv allow' in the project root or source your .envrc file." >&2
+    exit 1
+fi
+
+cat <<EOF
+{
+  "proxmox": {
+    "hosts": ["$PROXMOX_HOST"]
+  },
+  "_meta": {
+    "hostvars": {
+      "$PROXMOX_HOST": {
+        "ansible_user": "root",
+        "ansible_python_interpreter": "/usr/bin/python3"
+      }
+    }
+  }
+}
+EOF

@@ -1,0 +1,72 @@
+---
+- name: Bootstrap Proxmox for Terraform
+  hosts: proxmox
+  become: true
+  vars:
+    pve_user: "terraform-prov@pve"
+    pve_role: "TerraformProv"
+    # The ID for the token (e.g., terraform-prov@pve!tf-token)
+    token_id: "tf-token"
+
+    ansible_ssh_pass: "{{ lookup('env', 'PROXMOX_PASS') }}"
+
+  pre_tasks:
+    - name: Install local SSH key to Proxmox (No manual copy needed)
+      ansible.posix.authorized_key:
+        user: root
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+      # We force this task to use password auth, even if we switch to keys later
+      vars:
+        ansible_ssh_pass: "{{ lookup('env', 'PROXMOX_PASS') }}"
+
+  tasks:
+    - name: Create Terraform Role with required privileges
+      ansible.builtin.command: >
+        pveum role add {{ pve_role }} -privs "Datastore.Allocate Datastore.AllocateSpace Datastore.Audit Pool.Allocate Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU VM.Config.Disk VM.Config.HWType VM.Config.Memory VM.Config.Network VM.Config.Options VM.Migrate VM.PowerMgmt SDN.Use"
+      register: role_creation
+      failed_when: 
+        - role_creation.rc != 0 
+        - "'already exists' not in role_creation.stderr"
+      changed_when: role_creation.rc == 0
+
+    - name: Create Terraform User
+      ansible.builtin.command: >
+        pveum user add {{ pve_user }} --password "PlaceholderPass123!" 
+      register: user_creation
+      failed_when: 
+        - user_creation.rc != 0 
+        - "'already exists' not in user_creation.stderr"
+      changed_when: user_creation.rc == 0
+
+    - name: Bind User to Role (Global Permissions)
+      ansible.builtin.command: >
+        pveum acl modify / -user {{ pve_user }} -role {{ pve_role }}
+      register: acl_bind
+      changed_when: acl_bind.rc == 0
+
+    - name: Force Reset Token (To ensure we capture the secret)
+      ansible.builtin.command: >
+        pveum user token delete {{ pve_user }} {{ token_id }}
+      ignore_errors: true 
+      changed_when: false
+
+    - name: Generate NEW API Token
+      ansible.builtin.command: >
+        pveum user token add {{ pve_user }} {{ token_id }} --privsep 0 --output-format json
+      register: new_token
+      changed_when: true
+
+    - name: Save Terraform Creds to Root .envrc (On Localhost)
+      ansible.builtin.blockinfile:
+        path: "{{ playbook_dir }}/../.envrc"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          export TF_VAR_proxmox_api_token="{{ pve_user }}!{{ token_id }}={{ (new_token.stdout | from_json).value }}"
+      delegate_to: localhost
+      become: false
+
+    - name: Suggest direnv reload
+      ansible.builtin.debug:
+        msg: "Run 'direnv allow' in the root folder to load the new Terraform token!"
+
