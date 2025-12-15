@@ -1,0 +1,20 @@
+[global]
+keyboard = "en-gb"
+country = "gb"
+fqdn = "pve.home.lan"
+mailto = "admin@home.lan"
+timezone = "Europe/London"
+root_password = "ChangeMe123!"
+reboot_on_error = true
+
+[network]
+source = "from-dhcp"
+
+[disk-setup]
+filesystem = "zfs"
+# Wiki requires dot notation for ZFS properties
+zfs.raid = "raid0"
+zfs.ashift = 12
+zfs.compress = "on"
+# Wiki specifies 'disk_list' (snake_case), not 'disk-list'
+disk_list = ["sda"]

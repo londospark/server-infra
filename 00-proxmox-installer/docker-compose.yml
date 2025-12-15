@@ -1,0 +1,12 @@
+services:
+  builder:
+    build: 
+      context: .
+      dockerfile: Dockerfile
+    container_name: pve-iso-builder
+    volumes:
+      # Maps current folder to /data so the container can read answer.toml and write the ISO
+      - .:/data
+    # This ensures the container cleans itself up after running (optional but clean)
+    # Note: 'docker compose' handles cleanup differently than 'docker run --rm', 
+    # but this service definition is standard.
