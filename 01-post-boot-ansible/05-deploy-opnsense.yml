@@ -1,0 +1,113 @@
+---
+# Creates OPNsense VM from nano image - no installer needed
+- name: Deploy OPNsense from Nano Image
+  hosts: proxmox
+  become: true
+  vars:
+    mirror_base: "https://mirror.ams1.nl.leaseweb.net/opnsense/releases"
+    opnsense_vmid: 100
+    opnsense_name: "opnsense-router"
+    opnsense_memory: 4096
+    opnsense_cores: 2
+    opnsense_disk_storage: "local-zfs"
+    wan_bridge: "vmbr0"
+    lan_bridge: "vmbr1"
+
+  tasks:
+    - name: Detect latest OPNsense version
+      ansible.builtin.shell: |
+        curl -sL {{ mirror_base }}/ | grep -oE 'href="[0-9]+\.[0-9]+/"' | grep -oE '[0-9]+\.[0-9]+' | sort -V | tail -n1
+      register: latest_version_out
+      changed_when: false
+
+    - name: Set version fact
+      ansible.builtin.set_fact:
+        opnsense_ver: "{{ latest_version_out.stdout }}"
+
+    - name: Fail if version not detected
+      ansible.builtin.fail:
+        msg: "Could not detect OPNsense version from mirror"
+      when: opnsense_ver == ""
+
+    - name: Display detected version
+      ansible.builtin.debug:
+        msg: "Deploying OPNsense {{ opnsense_ver }}"
+
+    - name: Check if VM already exists
+      ansible.builtin.command: qm status {{ opnsense_vmid }}
+      register: vm_exists
+      failed_when: false
+      changed_when: false
+
+    - name: Deploy OPNsense VM
+      when: vm_exists.rc != 0
+      block:
+        - name: Ensure bzip2 is installed
+          ansible.builtin.apt:
+            name: bzip2
+            state: present
+
+        - name: Download OPNsense nano image
+          ansible.builtin.get_url:
+            url: "{{ mirror_base }}/{{ opnsense_ver }}/OPNsense-{{ opnsense_ver }}-nano-amd64.img.bz2"
+            dest: "/tmp/opnsense-nano.img.bz2"
+            mode: '0644'
+
+        - name: Decompress image
+          ansible.builtin.shell: |
+            bzip2 -d -k -f /tmp/opnsense-nano.img.bz2
+          args:
+            creates: /tmp/opnsense-nano.img
+
+        - name: Create VM shell
+          ansible.builtin.command: >
+            qm create {{ opnsense_vmid }}
+            --name {{ opnsense_name }}
+            --memory {{ opnsense_memory }}
+            --cores {{ opnsense_cores }}
+            --cpu x86-64-v2-AES
+            --ostype other
+            --scsihw virtio-scsi-single
+            --net0 virtio,bridge={{ wan_bridge }},firewall=0
+            --net1 virtio,bridge={{ lan_bridge }},firewall=0
+            --onboot 1
+            --agent 0
+
+        - name: Import disk image to VM
+          ansible.builtin.command: >
+            qm importdisk {{ opnsense_vmid }} /tmp/opnsense-nano.img {{ opnsense_disk_storage }}
+          register: import_result
+
+        - name: Attach imported disk
+          ansible.builtin.command: >
+            qm set {{ opnsense_vmid }}
+            --scsi0 {{ opnsense_disk_storage }}:vm-{{ opnsense_vmid }}-disk-0
+            --boot order=scsi0
+
+        - name: Resize disk to 32G
+          ansible.builtin.command: >
+            qm resize {{ opnsense_vmid }} scsi0 32G
+
+        - name: Cleanup downloaded files
+          ansible.builtin.file:
+            path: "{{ item }}"
+            state: absent
+          loop:
+            - /tmp/opnsense-nano.img.bz2
+            - /tmp/opnsense-nano.img
+
+        - name: Start OPNsense VM
+          ansible.builtin.command: qm start {{ opnsense_vmid }}
+
+        - name: Display success message
+          ansible.builtin.debug:
+            msg: |
+              OPNsense {{ opnsense_ver }} deployed as VM {{ opnsense_vmid }}
+              Default LAN IP: 192.168.1.1
+              Default credentials: root / opnsense
+              Configure via console or web UI at https://192.168.1.1
+
+    - name: VM already exists
+      when: vm_exists.rc == 0
+      ansible.builtin.debug:
+        msg: "VM {{ opnsense_vmid }} already exists. Skipping deployment."

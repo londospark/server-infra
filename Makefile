@@ -1,4 +1,4 @@
-.PHONY: all deps iso bootstrap infra tf-init tf-plan tf-apply tf-destroy help
+.PHONY: all deps iso bootstrap opnsense infra tf-init tf-plan tf-apply tf-destroy help
 
 TF_NET_DIR := 02-terraform/01-network-layer
 
@@ -18,6 +18,10 @@ bootstrap: ## Run Post-Install Ansible
 	@echo "Bootstrapping Proxmox..."
 	@ansible-playbook site.yml
 
+opnsense: ## Deploy OPNsense router VM
+	@echo "Deploying OPNsense..."
+	@ansible-playbook 01-post-boot-ansible/05-deploy-opnsense.yml
+
 tf-init: ## Initialize Terraform
 	@echo "Initializing Terraform in $(TF_NET_DIR)..."
 	@cd $(TF_NET_DIR) && terraform init -upgrade
@@ -36,4 +40,4 @@ tf-destroy: ## Destroy Terraform infrastructure
 
 infra: tf-init tf-apply ## Provision Network Layer
 
-all: deps iso bootstrap infra ## Run Full Stack
+all: deps iso bootstrap opnsense infra ## Run Full Stack
