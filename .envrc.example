@@ -12,5 +12,5 @@ export PROXMOX_MAC="{{MAC Address of Proxmox Host}}"
 export GATEWAY="{{Gateway IP Address}}"
 
 # --- TERRAFORM CONFIGURATION ---
-export TF_VAR_proxmox_api_endpoint="https://${PROXMOX_HOST}:8006/"
+export TF_VAR_proxmox_api_endpoint="https://${PROXMOX_HOST}:8006/api2/json"
 # The token will be appended below by Ansible...

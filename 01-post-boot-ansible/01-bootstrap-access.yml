@@ -62,7 +62,8 @@
         path: "{{ playbook_dir }}/../.envrc"
         marker: "# {mark} ANSIBLE MANAGED BLOCK"
         block: |
-          export TF_VAR_proxmox_api_token="{{ pve_user }}!{{ token_id }}={{ (new_token.stdout | from_json).value }}"
+          export TF_VAR_proxmox_api_token_id="{{ pve_user }}!{{ token_id }}"
+          export TF_VAR_proxmox_api_token_secret="{{ (new_token.stdout | from_json).value }}"
       delegate_to: localhost
       become: false
 

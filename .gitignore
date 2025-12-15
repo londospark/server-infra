@@ -1,1 +1,7 @@
 .envrc
+
+# Terraform state and vars
+**/terraform.tfstate
+**/terraform.tfstate.backup
+**/.terraform/
+**/*.tfvars

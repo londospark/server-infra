@@ -1,0 +1,4 @@
+- import_playbook: 01-post-boot-ansible/01-bootstrap-access.yml
+- import_playbook: 01-post-boot-ansible/02-remove-enterprise.yml
+- import_playbook: 01-post-boot-ansible/03-fetch-isos.yml
+- import_playbook: 01-post-boot-ansible/04-network-bridges.yml
