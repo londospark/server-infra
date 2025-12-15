@@ -1,0 +1,39 @@
+- name: Proxmox "Shut Up & Update"
+  hosts: proxmox
+  become: true
+  gather_facts: true # We need this to get {{ ansible_distribution_release }}
+
+  tasks:
+    - name: Remove Proxmox Enterprise Repository
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/pve-enterprise.sources
+        state: absent
+
+    - name: Remove Proxmox Ceph Enterprise Repository
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/ceph.sources
+        state: absent
+
+    - name: Add Proxmox No-Subscription Repository (Dynamic Version)
+      ansible.builtin.apt_repository:
+        repo: "deb http://download.proxmox.com/debian/pve {{ ansible_facts[\"distribution_release\"] }} pve-no-subscription"
+        state: present
+        filename: pve-no-subscription
+
+    - name: Update apt cache and upgrade packages
+      ansible.builtin.apt:
+        update_cache: yes
+        upgrade: dist
+
+    - name: "Silencing the Subscription Nag (The GUI Patch)"
+      ansible.builtin.replace:
+        path: /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+        regexp: "Ext.Msg.show\\(\\{\\s+title: gettext\\('No valid subscription'\\),"
+        replace: "void({" 
+      notify: restart_proxy
+
+  handlers:
+    - name: restart_proxy
+      ansible.builtin.service:
+        name: pveproxy
+        state: restarted
