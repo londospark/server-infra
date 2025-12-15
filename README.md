@@ -108,12 +108,20 @@ This project is designed for **macOS and Linux** systems. Windows users should u
    ```
    This loads the environment variables from `.envrc`, which are required for all subsequent operations.
 
-7. Navigate to the subfolder for what you want to set up:
+7. **Use the Makefile for convenient commands**:
+   ```bash
+   make help          # Show all available commands
+   make deps          # Install Ansible collections and dependencies
+   make iso           # Build the Proxmox ISO (Stage 0)
+   make bootstrap     # Run Post-Install Ansible (Stage 1)
+   make all           # Run the full stack from scratch
+   ```
+
+8. Or navigate to the subfolder for what you want to set up:
    ```bash
    cd 00-proxmox-installer
    ```
-
-8. Follow the README in that subfolder for detailed instructions.
+   and follow the README in that subfolder for detailed instructions.
 
 ## System Requirements
 
