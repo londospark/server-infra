@@ -11,6 +11,14 @@ Before running this project, ensure you have the following installed:
 - **Docker Compose** (version 2.0+)
   - Installation: [Install Docker Desktop](https://www.docker.com/products/docker-desktop) (includes Compose) or [install separately](https://docs.docker.com/compose/install/)
 
+### Configuration (.env)
+Create or update `.env` with your host user's UID and GID to ensure the generated ISO has correct ownership:
+```env
+UID=1000
+GID=1000
+```
+Find your UID/GID with: `id` (displays your user and group IDs)
+
 ### For USB Flashing
 - **Linux/Mac**: Built-in tools (dd, diskutil, or third-party tools)
 - **Windows**: [Rufus](https://rufus.ie/) (recommended) or [Balena Etcher](https://www.balena.io/etcher/)

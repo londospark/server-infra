@@ -7,6 +7,6 @@ services:
     volumes:
       # Maps current folder to /data so the container can read answer.toml and write the ISO
       - .:/data
-    # This ensures the container cleans itself up after running (optional but clean)
-    # Note: 'docker compose' handles cleanup differently than 'docker run --rm', 
-    # but this service definition is standard.
+    environment:
+      - OUTPUT_UID=${UID:-1000}
+      - OUTPUT_GID=${GID:-1000}

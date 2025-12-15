@@ -35,5 +35,5 @@ RUN echo "🔎 Searching for the latest Proxmox VE ISO..." && \
 WORKDIR /data
 
 # 5. The Build Command
-CMD ["sh", "-c", "echo '🔨 Baking answer.toml into the ISO...' && proxmox-auto-install-assistant prepare-iso /proxmox.iso --fetch-from iso --answer-file /data/answer.toml --output /data/proxmox-headless.iso && chmod 666 /data/proxmox-headless.iso && echo '🎉 Success! Your custom image is ready: proxmox-headless.iso'"]
+CMD ["sh", "-c", "echo '🔨 Baking answer.toml into the ISO...' && proxmox-auto-install-assistant prepare-iso /proxmox.iso --fetch-from iso --answer-file /data/answer.toml --output /data/proxmox-headless.iso && chown $OUTPUT_UID:$OUTPUT_GID /data/proxmox-headless.iso && echo '🎉 Success! Created: proxmox-headless.iso (Owned by user $OUTPUT_UID)'"]
 
