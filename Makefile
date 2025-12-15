@@ -20,7 +20,7 @@ bootstrap: ## Run Post-Install Ansible
 
 opnsense: ## Deploy OPNsense router VM
 	@echo "Deploying OPNsense..."
-	@ansible-playbook 01-post-boot-ansible/05-deploy-opnsense.yml
+	@ansible-playbook 01-post-boot-ansible/04-deploy-opnsense.yml
 
 tf-init: ## Initialize Terraform
 	@echo "Initializing Terraform in $(TF_NET_DIR)..."
