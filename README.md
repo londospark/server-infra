@@ -175,22 +175,20 @@ This project now supports **two methods** for deploying OPNsense:
 
 **Workflow:**
 ```bash
-# 1. Build cloud-init enabled image with Packer
-make opnsense-cloudinit-template
+# Complete automated deployment (image build -> template -> VM -> configuration)
+make opnsense-deploy
 
-# 2. Deploy VM from template
-make opnsense-cloudinit-vm
+# Or step by step:
+# 1. Build cloud-init enabled image with Packer and create template
+make opnsense-template
 
-# 3. Set admin password for web UI
-make opnsense-set-password
-
-# 4. Configure routing (for single-NIC Proxmox homelab)
-make opnsense-routing
+# 2. Clone VM from template and configure (networking, SSH keys, admin user)
+make opnsense-vm
 ```
 
 **Access:**
 - SSH: `ssh -J root@<proxmox-ip> root@<lan-ip>` (using your SSH key)
-- Web UI: `https://<lan-ip>` (username/password from step 3)
+- Web UI: `https://<lan-ip>` (default: admin/opnsense - can be customized via env vars)
 
 **Note on Single-NIC Homelab Setup:**
 - If your Proxmox host has only one physical NIC, you'll need a static route on your home router
@@ -226,11 +224,10 @@ make opnsense
 
 1. **Build ISO**: `make iso` (optional if you already have Proxmox installed)
 2. **Bootstrap host**: `make bootstrap` (SSH key, Terraform API token, community repo, bridges)
-3. **Build OPNsense image and template**: `make opnsense-cloudinit-template` (downloads OPNsense ISO, builds with Packer, uploads to Proxmox)
-4. **Deploy VM**: `make opnsense-cloudinit-vm` (clones template with cloud-init configuration)
-5. **Set admin password**: `make opnsense-set-password` (creates web UI admin user)
-6. **Configure routing**: `make opnsense-routing` (enables access to VMs from home network)
-7. **Access OPNsense**: SSH and web UI are immediately available
+3. **Deploy OPNsense**: `make opnsense-deploy` (builds image, creates template, clones VM, configures networking and admin user)
+   - Or manually: `make opnsense-template` then `make opnsense-vm`
+4. **Configure home router**: Add static route for VM network (10.0.0.0/24 via <opnsense-wan-ip>)
+5. **Access OPNsense**: SSH and web UI are immediately available
 
 ### Legacy Flow (Nano Image)
 

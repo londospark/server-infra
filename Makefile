@@ -66,13 +66,15 @@ packer-image: ## Build OPNsense cloud-init image with Packer
 		packer build -force .; \
 	fi
 
-opnsense-cloudinit-template: packer-image ## Upload Packer image to Proxmox and create cloud-init template
+opnsense-template: packer-image ## Build and deploy OPNsense cloud-init template
 	@echo "Deploying OPNsense cloud-init template to Proxmox..."
-	@ansible-playbook 01-post-boot-ansible/07-deploy-opnsense-cloudinit.yml
+	@ansible-playbook 01-post-boot-ansible/05-opnsense-deploy-template.yml
 
-opnsense-cloudinit-vm: ## Clone OPNsense VM from cloud-init template
-	@echo "Cloning OPNsense VM from cloud-init template..."
-	@ansible-playbook 01-post-boot-ansible/08-clone-opnsense-cloudinit.yml
+opnsense-vm: opnsense-template ## Clone, configure, and deploy OPNsense VM
+	@echo "Deploying OPNsense VM..."
+	@ansible-playbook 01-post-boot-ansible/06-opnsense-clone-and-configure.yml
+
+opnsense-deploy: opnsense-vm ## Complete OPNsense deployment (alias for opnsense-vm)
 
 tf-cloudinit-init: ## Initialize Terraform for cloud-init OPNsense
 	@echo "Initializing Terraform in $(TF_OPNSENSE_CI_DIR)..."
@@ -85,18 +87,6 @@ tf-cloudinit-plan: ## Plan Terraform changes for cloud-init OPNsense
 tf-cloudinit-apply: ## Apply Terraform changes for cloud-init OPNsense
 	@echo "Applying Infrastructure for cloud-init OPNsense..."
 	@cd $(TF_OPNSENSE_CI_DIR) && terraform apply -auto-approve
-
-opnsense-routing: ## Configure routing for VM access from home network
-	@echo "Configuring routing between home network and VMs..."
-	@ansible-playbook 01-post-boot-ansible/10-configure-vm-routing.yml
-
-opnsense-fix-ssh: ## Fix SSH key on OPNsense
-	@echo "Installing SSH key on OPNsense..."
-	@ansible-playbook 01-post-boot-ansible/12-fix-opnsense-ssh.yml
-
-opnsense-set-password: ## Set OPNsense admin password
-	@echo "Setting OPNsense admin password..."
-	@ansible-playbook 01-post-boot-ansible/15-opnsense-set-password.yml
 
 packer-clean: ## Clean Packer build artifacts (ISO and output)
 	@echo "Cleaning Packer build artifacts..."

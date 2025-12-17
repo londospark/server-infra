@@ -1,6 +1,6 @@
 ---
-# Clone OPNsense VM from cloud-init template
-- name: Clone OPNsense VM from cloud-init template
+# Clone OPNsense VM from cloud-init template and configure networking
+- name: Clone and configure OPNsense VM
   hosts: proxmox
   become: true
 
@@ -17,15 +17,14 @@
     opnsense_wan_gw: "{{ lookup('env', 'OPNSENSE_WAN_GW') | default('', true) }}"
     opnsense_nameserver: "{{ lookup('env', 'OPNSENSE_NAMESERVER') | default('8.8.8.8', true) }}"
     opnsense_storage: "{{ lookup('env', 'OPNSENSE_STORAGE') | default('local-zfs', true) }}"
+    opnsense_admin_user: "{{ lookup('env', 'OPNSENSE_ADMIN_USER') | default('admin', true) }}"
+    opnsense_admin_password: "{{ lookup('env', 'OPNSENSE_ADMIN_PASSWORD') | default('opnsense', true) }}"
 
   pre_tasks:
     - name: Construct LAN IP with CIDR notation
       ansible.builtin.set_fact:
         opnsense_lan_ip_cidr: "{{ opnsense_lan_ip }}/{{ opnsense_lan_mask }}"
 
-    - name: Display LAN IP configuration
-      ansible.builtin.debug:
-        msg: "LAN IP will be configured as: {{ opnsense_lan_ip_cidr }}"
     - name: Check if template exists
       ansible.builtin.command: qm status {{ opnsense_template_vmid }}
       register: template_check
@@ -39,7 +38,7 @@
 
     - name: Fail if VM is not a template
       ansible.builtin.fail:
-        msg: "VMID {{ opnsense_template_vmid }} exists but is not a template. Run 07-deploy-opnsense-cloudinit.yml first."
+        msg: "VMID {{ opnsense_template_vmid }} exists but is not a template. Run 'make opnsense-template' first."
       when: "'template: 1' not in template_config.stdout"
 
   tasks:
@@ -150,33 +149,105 @@
         seconds: 30
       when: vm_started.changed
 
+    - name: Get OPNsense LAN IP address
+      ansible.builtin.shell: |
+        qm guest exec {{ opnsense_vm_vmid }} -- ifconfig eth1 | grep 'inet ' | awk '{print $2}'
+      register: opnsense_ip_result
+      changed_when: false
+      failed_when: false
+
+    - name: Set OPNsense IP
+      ansible.builtin.set_fact:
+        opnsense_host: "{{ opnsense_ip_result.stdout | trim }}"
+      when: opnsense_ip_result.stdout | trim | length > 0
+
+    - name: Create user creation script
+      ansible.builtin.copy:
+        dest: /tmp/create_opnsense_user.php
+        content: |
+          <?php
+          require_once '/usr/local/etc/inc/config.inc';
+          require_once '/usr/local/etc/inc/util.inc';
+          require_once '/usr/local/etc/inc/auth.inc';
+          
+          $config = parse_config(true);
+          
+          foreach ($config['system']['user'] as $idx => $user) {
+              if ($user['name'] == '{{ opnsense_admin_user }}') {
+                  unset($config['system']['user'][$idx]);
+                  break;
+              }
+          }
+          
+          $new_user = array();
+          $new_user['name'] = '{{ opnsense_admin_user }}';
+          $new_user['descr'] = 'Admin user created by Ansible';
+          $new_user['scope'] = 'user';
+          $new_user['groupname'] = 'admins';
+          $new_user['password'] = crypt('{{ opnsense_admin_password }}', '$6$rounds=5000$saltsalt$');
+          $new_user['uid'] = '2000';
+          $new_user['priv'] = array('page-all');
+          
+          $config['system']['user'][] = $new_user;
+          
+          write_config('Created {{ opnsense_admin_user }} user via Ansible');
+          echo "User {{ opnsense_admin_user }} created successfully\n";
+          ?>
+        mode: '0644'
+      when: 
+        - vm_started.changed
+        - opnsense_host is defined
+
+    - name: Copy script to OPNsense
+      ansible.builtin.command: |
+        scp -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -o ProxyJump=root@127.0.0.1 /tmp/create_opnsense_user.php root@{{ opnsense_host }}:/tmp/
+      changed_when: true
+      when:
+        - vm_started.changed
+        - opnsense_host is defined
+
+    - name: Create admin user
+      ansible.builtin.command: |
+        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J root@127.0.0.1 root@{{ opnsense_host }} "/usr/local/bin/php /tmp/create_opnsense_user.php"
+      register: user_create_result
+      changed_when: "'successfully' in user_create_result.stdout"
+      when:
+        - vm_started.changed
+        - opnsense_host is defined
+
+    - name: Clean up script
+      ansible.builtin.file:
+        path: /tmp/create_opnsense_user.php
+        state: absent
+
+    - name: Enable IP forwarding on Proxmox
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
     - name: Display VM information
       ansible.builtin.debug:
         msg: |
-          OPNsense VM cloned and started successfully!
+          ✅ OPNsense VM deployed and configured!
           
           VM ID: {{ opnsense_vm_vmid }}
           VM Name: {{ opnsense_vm_name }}
           WAN IP: {{ opnsense_wan_ip }}
           LAN IP: {{ opnsense_lan_ip_cidr }}
           
-          The VM is now booting. Cloud-init will:
-          1. Configure network interfaces
-          2. Install your SSH public key
-          3. Generate a random root password
-          4. Log the encrypted password to /var/log/messages
+          Web UI Access:
+            URL: https://{{ opnsense_lan_ip }}
+            Username: {{ opnsense_admin_user }}
+            Password: {{ opnsense_admin_password }}
           
-          To retrieve the root password:
-          1. Wait ~2 minutes for cloud-init to complete
-          2. SSH into the VM: ssh root@<vm-ip>
-          3. Run: grep "Encrypted password" /var/log/messages | tail -1
-          4. Decrypt on your workstation:
-             echo "<encrypted-password>" | base64 -d | openssl rsautl -decrypt -inkey ~/.ssh/id_ed25519
+          SSH Access:
+            ssh -J root@{{ ansible_host }} root@{{ opnsense_lan_ip }}
           
-          Access OPNsense web UI:
-          - WAN: https://{{ opnsense_wan_ip if opnsense_wan_ip != 'dhcp' else '<check-vm-ip>' }}
-          - LAN: https://{{ opnsense_lan_ip }}
-          
-          Default credentials:
-          - Username: root
-          - Password: Retrieved via SSH (see above)
+          Next Steps:
+          1. Add static route on your home router:
+             Network: {{ opnsense_lan_ip_cidr }}
+             Gateway: <OPNsense WAN IP>
+          2. Test connectivity: ping {{ opnsense_lan_ip }}

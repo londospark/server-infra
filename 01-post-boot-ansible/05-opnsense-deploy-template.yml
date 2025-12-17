@@ -28,7 +28,7 @@
 
     - name: Fail if local image not found
       ansible.builtin.fail:
-        msg: "OPNsense image not found at {{ opnsense_image_source }}. Run 'cd 03-opnsense-image && packer build .' first."
+        msg: "OPNsense image not found at {{ opnsense_image_source }}. Run 'make opnsense-image' first."
       when: not local_image.stat.exists
 
     - name: Upload OPNsense cloud-init image to Proxmox
@@ -103,17 +103,8 @@
     - name: Display template information
       ansible.builtin.debug:
         msg: |
-          OPNsense cloud-init template created successfully!
+          ✅ OPNsense cloud-init template created!
           
           Template ID: {{ opnsense_template_vmid }}
-          Template Name: {{ opnsense_template_name }}
           Storage: {{ opnsense_storage }}
           Version: {{ opnsense_version }}
-          
-          To clone a VM from this template:
-          qm clone {{ opnsense_template_vmid }} <new-vmid> --name <vm-name> --full 1
-          
-          Or use the Ansible playbook:
-          ansible-playbook 01-post-boot-ansible/08-clone-opnsense-cloudinit.yml
-          
-          Or use Terraform (see 02-terraform/02-opnsense-cloudinit/)
