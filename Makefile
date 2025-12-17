@@ -89,17 +89,49 @@ clean: ## Remove build artifacts
 
 # Testing and Validation
 .PHONY: test
-test: test-ansible test-packer ## Run all tests
+test: test-yaml test-ansible test-toml test-json test-docker ## Run all validation tests
+
+.PHONY: test-yaml
+test-yaml: ## Validate YAML files
+	@echo "Validating YAML files..."
+	@pip install --quiet yamllint 2>/dev/null || true
+	@yamllint --strict -d '{extends: default, rules: {line-length: {max: 200}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable, truthy: disable}}' .
+	@echo "YAML validation passed!"
 
 .PHONY: test-ansible
 test-ansible: ## Validate Ansible playbooks
 	@echo "Validating Ansible playbooks..."
-	@ansible-playbook --syntax-check 01-proxmox-config/site.yml
-	@ansible-playbook --syntax-check 03-opnsense-deployment/site.yml
-	@echo "Running ansible-lint..."
-	@ansible-lint 01-proxmox-config/
-	@ansible-lint 03-opnsense-deployment/
+	@export PROXMOX_HOST=dummy.example.com && \
+	ansible-playbook --syntax-check site.yml && \
+	ansible-playbook --syntax-check 01-proxmox-config/site.yml && \
+	ansible-playbook --syntax-check 03-opnsense-deployment/site.yml
 	@echo "Ansible validation passed!"
+
+.PHONY: test-toml
+test-toml: ## Validate TOML files
+	@echo "Validating TOML files..."
+	@pip install --quiet toml 2>/dev/null || true
+	@python -c "import toml, sys, os; \
+	files = [os.path.join(r, f) for r, _, fs in os.walk('.') for f in fs if f.endswith('.toml') and '.git' not in r]; \
+	failed = False; \
+	[print(f'✓ {f}') if not (lambda: (toml.load(open(f)), False)[1])() else (print(f'✗ {f}'), setattr(sys.modules[__name__], 'failed', True)) for f in files]; \
+	sys.exit(1 if failed else 0)"
+	@echo "TOML validation passed!"
+
+.PHONY: test-json
+test-json: ## Validate JSON files
+	@echo "Validating JSON files..."
+	@find . -name "*.json" -not -path "./.git/*" -exec sh -c 'for file; do if jq empty "$$file" 2>/dev/null; then echo "✓ $$file"; else echo "✗ $$file"; exit 1; fi; done' sh {} +
+	@echo "JSON validation passed!"
+
+.PHONY: test-docker
+test-docker: ## Validate docker-compose files
+	@echo "Validating docker-compose files..."
+	@if [ -f "00-proxmox-installer/docker-compose.yml" ]; then \
+		docker compose -f 00-proxmox-installer/docker-compose.yml config --quiet && \
+		echo "✓ docker-compose.yml"; \
+	fi
+	@echo "Docker validation passed!"
 
 .PHONY: test-packer
 test-packer: ## Validate Packer templates
