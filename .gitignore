@@ -27,3 +27,4 @@
 **/credentials/
 **/.vault_pass
 **/*_password.txt
+04-docker-hosts/ansible/inventory/hosts.yml

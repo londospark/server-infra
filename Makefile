@@ -147,10 +147,10 @@ test-ansible: ## Validate Ansible playbooks
 	ansible-playbook --syntax-check site.yml && \
 	ansible-playbook --syntax-check 01-proxmox-config/site.yml && \
 	ansible-playbook --syntax-check 03-opnsense-deployment/site.yml && \
-	ansible-playbook --syntax-check 04-docker-hosts/ansible/playbooks/bootstrap.yml && \
-	ansible-playbook --syntax-check 04-docker-hosts/ansible/playbooks/site.yml && \
-	ansible-playbook --syntax-check 04-docker-hosts/ansible/playbooks/deploy-stacks.yml && \
-	ansible-playbook --syntax-check 05-opnsense-wireguard/playbooks/setup-wireguard.yml
+	cd 04-docker-hosts/ansible && ansible-playbook --syntax-check playbooks/bootstrap.yml && \
+	cd ../../ && cd 04-docker-hosts/ansible && ansible-playbook --syntax-check playbooks/site.yml && \
+	cd ../../ && cd 04-docker-hosts/ansible && ansible-playbook --syntax-check playbooks/deploy-stacks.yml && \
+	cd ../../ && ansible-playbook --syntax-check 05-opnsense-wireguard/playbooks/setup-wireguard.yml
 	@echo "Ansible validation passed!"
 
 .PHONY: test-toml

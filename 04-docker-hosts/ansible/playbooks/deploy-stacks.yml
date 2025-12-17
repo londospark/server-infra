@@ -17,12 +17,12 @@
     - name: Deploy Traefik (all hosts)
       ansible.builtin.include_role:
         name: traefik
-      tags: [traefik, all]
+      tags: [traefik]
 
     - name: Deploy monitoring stack (all hosts)
       ansible.builtin.include_role:
         name: stack-monitoring
-      tags: [monitoring, all]
+      tags: [monitoring]
 
 - name: Deploy Home Management Stack
   hosts: home-host
