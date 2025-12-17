@@ -22,10 +22,7 @@ bootstrap: ## Run Post-Install Ansible
 	@echo "Bootstrapping Proxmox..."
 	@ansible-playbook site.yml
 
-opnsense: ## Reconfigure OPNsense LAN IP (post-boot)
-	@echo "Configuring OPNsense LAN..."
-	@test -n "$$OPNSENSE_HOST" || (echo "ERROR: OPNSENSE_HOST is not set. Update .envrc (OPNSENSE_*) and run 'direnv allow' first."; exit 1)
-	@ansible-playbook 01-post-boot-ansible/04-deploy-opnsense.yml
+
 
 tf-init: ## Initialize Terraform (legacy / optional)
 	@echo "Initializing Terraform in $(TF_NET_DIR)..."
@@ -43,24 +40,9 @@ tf-destroy: ## Destroy Terraform infrastructure (legacy / optional)
 	@echo "Destroying Infrastructure..."
 	@cd $(TF_NET_DIR) && terraform destroy
 
-infra: opnsense-template opnsense-vm ## Provision Network Layer (build template + full clone via Ansible)
+infra: opnsense-cloudinit-template opnsense-cloudinit-vm ## Provision Network Layer (build cloud-init template + clone via Ansible)
 
-all: deps iso bootstrap infra opnsense ## Run Full Stack
-
-opnsense-template: ## Download OPNsense nano image and build Proxmox template (DANGEROUS: overwrites template)
-	@if [ "$$OPNSENSE_TEMPLATE_REFRESH" != "1" ]; then \
-		echo "WARNING: This will (re)build the OPNsense Proxmox template and may overwrite your current one."; \
-		echo "After this, you must re-enable SSH in the new template via the OPNsense web UI before using it."; \
-		printf "Type 'YES' to continue, or anything else to abort: "; \
-		read ans; \
-		[ "$$ans" = "YES" ] || { echo "Aborted OPNsense template rebuild."; exit 1; }; \
-	fi
-	@echo "Preparing OPNsense template from nano image..."
-	@ansible-playbook 01-post-boot-ansible/05-opnsense-template.yml
-
-opnsense-vm: ## Clone OPNsense VM from template (no Terraform)
-	@echo "Cloning OPNsense VM from template..."
-	@ansible-playbook 01-post-boot-ansible/06-clone-opnsense.yml
+all: deps iso bootstrap infra ## Run Full Stack
 
 packer-image: ## Build OPNsense cloud-init image with Packer
 	@echo "Building OPNsense cloud-init image with Packer..."
