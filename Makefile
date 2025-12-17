@@ -110,8 +110,8 @@ test-ansible: ## Validate Ansible playbooks
 .PHONY: test-toml
 test-toml: ## Validate TOML files
 	@echo "Validating TOML files..."
-	@pip install --quiet toml 2>/dev/null || true
-	@python -c "import toml, sys, os; \
+	@python3 -m pip install --quiet toml 2>/dev/null || python -m pip install --quiet toml 2>/dev/null || true
+	@python3 -c "import toml, sys, os; \
 	files = [os.path.join(r, f) for r, _, fs in os.walk('.') for f in fs if f.endswith('.toml') and '.git' not in r]; \
 	failed = False; \
 	[print(f'✓ {f}') if not (lambda: (toml.load(open(f)), False)[1])() else (print(f'✗ {f}'), setattr(sys.modules[__name__], 'failed', True)) for f in files]; \

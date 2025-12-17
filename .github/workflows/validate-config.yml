@@ -18,7 +18,17 @@ jobs:
 
       - name: Validate YAML files
         run: |
-          yamllint --strict -d '{extends: default, rules: {line-length: {max: 200}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable, truthy: disable}}' .
+          yamllint --strict -d '{
+            extends: default, 
+            rules: {
+              line-length: {max: 200}, 
+              indentation: {spaces: 2}, 
+              document-start: disable, 
+              trailing-spaces: disable, 
+              empty-lines: disable, 
+              truthy: disable
+            }
+          }' .
 
   ansible:
     runs-on: ubuntu-latest
