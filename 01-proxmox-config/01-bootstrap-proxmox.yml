@@ -1,0 +1,157 @@
+---
+- name: Proxmox Post-Boot Configuration
+  hosts: proxmox
+  become: true
+  gather_facts: true
+  vars:
+    pve_user: "terraform-prov@pve"
+    pve_role: "TerraformProv"
+    token_id: "tf-token"
+    ansible_ssh_pass: "{{ lookup('env', 'PROXMOX_PASS') }}"
+
+  tasks:
+    # Bootstrap SSH Access
+    - name: Install local SSH key to Proxmox
+      ansible.posix.authorized_key:
+        user: root
+        state: present
+        key: "{{ lookup('file', '~/.ssh/id_ed25519.pub') }}"
+      vars:
+        ansible_ssh_pass: "{{ lookup('env', 'PROXMOX_PASS') }}"
+      tags: [bootstrap, ssh]
+
+    # Remove Enterprise Repos
+    - name: Remove Proxmox Enterprise Repository
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/pve-enterprise.sources
+        state: absent
+      tags: [repos]
+
+    - name: Remove Proxmox Ceph Enterprise Repository
+      ansible.builtin.file:
+        path: /etc/apt/sources.list.d/ceph.sources
+        state: absent
+      tags: [repos]
+
+    - name: Add Proxmox No-Subscription Repository
+      ansible.builtin.apt_repository:
+        repo: "deb http://download.proxmox.com/debian/pve {{ ansible_facts['distribution_release'] }} pve-no-subscription"
+        state: present
+        filename: pve-no-subscription
+      tags: [repos]
+
+    - name: Update apt cache and upgrade packages
+      ansible.builtin.apt:
+        update_cache: true
+        upgrade: dist
+      tags: [repos, upgrade]
+
+    - name: Silence subscription nag in web UI
+      ansible.builtin.replace:
+        path: /usr/share/javascript/proxmox-widget-toolkit/proxmoxlib.js
+        regexp: "Ext.Msg.show\\(\\{\\s+title: gettext\\('No valid subscription'\\),"
+        replace: "void({"
+      notify: Restart pveproxy
+      tags: [repos]
+
+    # Network Configuration
+    - name: Ensure vmbr1 (LAN Bridge) exists
+      ansible.builtin.blockinfile:
+        path: /etc/network/interfaces
+        marker: "# {mark} ANSIBLE MANAGED: LAN BRIDGE"
+        block: |
+          auto vmbr1
+          iface vmbr1 inet manual
+              bridge-ports none
+              bridge-stp off
+              bridge-fd 0
+              comment Internal LAN (Managed by Ansible)
+      register: net_config
+      notify: Apply network changes
+      tags: [network]
+
+    # Terraform User Setup
+    - name: Create or update Terraform role
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          pveum role add {{ pve_role }} \
+            -privs "Datastore.Allocate Datastore.AllocateSpace \
+            Datastore.AllocateTemplate Datastore.Audit Pool.Allocate \
+            Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit \
+            VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU \
+            VM.Config.Disk VM.Config.HWType VM.Config.Memory \
+            VM.Config.Network VM.Config.Options VM.Console VM.Migrate \
+            VM.PowerMgmt SDN.Use" 2>/dev/null || \
+          pveum role modify {{ pve_role }} \
+            -privs "Datastore.Allocate Datastore.AllocateSpace \
+            Datastore.AllocateTemplate Datastore.Audit Pool.Allocate \
+            Sys.Audit Sys.Console Sys.Modify VM.Allocate VM.Audit \
+            VM.Clone VM.Config.CDROM VM.Config.Cloudinit VM.Config.CPU \
+            VM.Config.Disk VM.Config.HWType VM.Config.Memory \
+            VM.Config.Network VM.Config.Options VM.Console VM.Migrate \
+            VM.PowerMgmt SDN.Use"
+        executable: /bin/bash
+      register: role_result
+      changed_when: role_result.rc == 0
+      tags: [terraform]
+
+    - name: Create Terraform user
+      ansible.builtin.command: >
+        pveum user add {{ pve_user }} --password "PlaceholderPass123!"
+      register: user_creation
+      failed_when:
+        - user_creation.rc != 0
+        - "'already exists' not in user_creation.stderr"
+      changed_when: user_creation.rc == 0
+      tags: [terraform]
+
+    - name: Bind user to role
+      ansible.builtin.command: >
+        pveum acl modify / -user {{ pve_user }} -role {{ pve_role }}
+      register: acl_bind
+      changed_when: acl_bind.rc == 0
+      tags: [terraform]
+
+    - name: Remove existing API token
+      ansible.builtin.command: >
+        pveum user token delete {{ pve_user }} {{ token_id }}
+      failed_when: false
+      changed_when: false
+      tags: [terraform]
+
+    - name: Generate new API token
+      ansible.builtin.command: >
+        pveum user token add {{ pve_user }} {{ token_id }} --privsep 0 --output-format json
+      register: new_token
+      changed_when: true
+      tags: [terraform]
+
+    - name: Save Terraform credentials to .envrc
+      ansible.builtin.blockinfile:
+        path: "{{ playbook_dir }}/../.envrc"
+        marker: "# {mark} ANSIBLE MANAGED BLOCK"
+        block: |
+          export TF_VAR_proxmox_api_token_id="{{ pve_user }}!{{ token_id }}"
+          export TF_VAR_proxmox_api_token_secret="{{ (new_token.stdout | from_json).value }}"
+      delegate_to: localhost
+      become: false
+      tags: [terraform]
+
+    - name: Auto-approve .envrc changes
+      ansible.builtin.command: direnv allow "{{ playbook_dir }}/.."
+      delegate_to: localhost
+      become: false
+      changed_when: true
+      tags: [terraform]
+
+  handlers:
+    - name: Apply network changes
+      ansible.builtin.command:
+        cmd: ifreload -a
+      changed_when: true
+
+    - name: Restart pveproxy
+      ansible.builtin.service:
+        name: pveproxy
+        state: restarted

@@ -50,13 +50,14 @@
 
     - name: Stop existing VM if running
       ansible.builtin.command: qm stop {{ opnsense_vm_vmid }}
-      when: 
+      when:
         - vm_exists.rc == 0
         - "'running' in vm_exists.stdout"
       register: vm_stopped
       failed_when: false
+      changed_when: true
 
-    - name: Wait for VM to stop
+    - name: Wait for VM to stop  # noqa: no-handler
       ansible.builtin.pause:
         seconds: 5
       when: vm_stopped.changed
@@ -67,6 +68,7 @@
         - vm_exists.rc == 0
         - lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool
       register: vm_destroyed
+      changed_when: true
 
     - name: Clone OPNsense VM from template
       ansible.builtin.command: >-
@@ -75,6 +77,7 @@
         --full 1
         --storage {{ opnsense_storage }}
       when: vm_exists.rc != 0 or vm_destroyed.changed
+      changed_when: true
 
     - name: Configure VM resources
       ansible.builtin.command: >-
@@ -82,12 +85,14 @@
         --cores {{ opnsense_vm_cores }}
         --memory {{ opnsense_vm_memory }}
       when: vm_exists.rc != 0 or vm_destroyed.changed
+      changed_when: true
 
     - name: Add second network interface for LAN
       ansible.builtin.command: >-
         qm set {{ opnsense_vm_vmid }}
         --net1 virtio,bridge=vmbr1
       when: vm_exists.rc != 0 or vm_destroyed.changed
+      changed_when: true
 
     - name: Create temporary file for SSH key
       ansible.builtin.tempfile:
@@ -110,6 +115,7 @@
         --sshkeys {{ ssh_key_tempfile.path }}
         --nameserver {{ opnsense_nameserver }}
       when: vm_exists.rc != 0 or vm_destroyed.changed
+      changed_when: true
 
     - name: Remove temporary SSH key file
       ansible.builtin.file:
@@ -121,9 +127,10 @@
       ansible.builtin.command: >-
         qm set {{ opnsense_vm_vmid }}
         --ipconfig0 ip=dhcp
-      when: 
+      when:
         - vm_exists.rc != 0 or vm_destroyed.changed
         - opnsense_wan_ip == 'dhcp'
+      changed_when: true
 
     - name: Configure WAN interface (Static IP)
       ansible.builtin.command: >-
@@ -132,26 +139,32 @@
       when:
         - vm_exists.rc != 0 or vm_destroyed.changed
         - opnsense_wan_ip != 'dhcp'
+      changed_when: true
 
     - name: Configure LAN interface
       ansible.builtin.command: >-
         qm set {{ opnsense_vm_vmid }}
         --ipconfig1 ip={{ opnsense_lan_ip_cidr }}
       when: vm_exists.rc != 0 or vm_destroyed.changed
+      changed_when: true
 
     - name: Start OPNsense VM
       ansible.builtin.command: qm start {{ opnsense_vm_vmid }}
-      register: vm_started
+      register: vm_start
+      changed_when: true
       when: vm_exists.rc != 0 or vm_destroyed.changed
 
-    - name: Wait for VM to boot
+    - name: Wait for VM to boot  # noqa: no-handler
       ansible.builtin.pause:
         seconds: 30
-      when: vm_started.changed
+      when: vm_start.changed
 
     - name: Get OPNsense LAN IP address
-      ansible.builtin.shell: |
-        qm guest exec {{ opnsense_vm_vmid }} -- ifconfig eth1 | grep 'inet ' | awk '{print $2}'
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          qm guest exec {{ opnsense_vm_vmid }} -- ifconfig eth1 | grep 'inet ' | awk '{print $2}'
+        executable: /bin/bash
       register: opnsense_ip_result
       changed_when: false
       failed_when: false
@@ -169,16 +182,16 @@
           require_once '/usr/local/etc/inc/config.inc';
           require_once '/usr/local/etc/inc/util.inc';
           require_once '/usr/local/etc/inc/auth.inc';
-          
+
           $config = parse_config(true);
-          
+
           foreach ($config['system']['user'] as $idx => $user) {
               if ($user['name'] == '{{ opnsense_admin_user }}') {
                   unset($config['system']['user'][$idx]);
                   break;
               }
           }
-          
+
           $new_user = array();
           $new_user['name'] = '{{ opnsense_admin_user }}';
           $new_user['descr'] = 'Admin user created by Ansible';
@@ -187,14 +200,14 @@
           $new_user['password'] = crypt('{{ opnsense_admin_password }}', '$6$rounds=5000$saltsalt$');
           $new_user['uid'] = '2000';
           $new_user['priv'] = array('page-all');
-          
+
           $config['system']['user'][] = $new_user;
-          
+
           write_config('Created {{ opnsense_admin_user }} user via Ansible');
           echo "User {{ opnsense_admin_user }} created successfully\n";
           ?>
-        mode: '0644'
-      when: 
+        mode: "0644"
+      when:
         - vm_started.changed
         - opnsense_host is defined
 
@@ -207,8 +220,11 @@
         - opnsense_host is defined
 
     - name: Create admin user
-      ansible.builtin.command: |
-        ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null -J root@127.0.0.1 root@{{ opnsense_host }} "/usr/local/bin/php /tmp/create_opnsense_user.php"
+      ansible.builtin.command:
+        cmd: >-
+          ssh -o StrictHostKeyChecking=no -o UserKnownHostsFile=/dev/null
+          -J root@127.0.0.1 root@{{ opnsense_host }}
+          "/usr/local/bin/php /tmp/create_opnsense_user.php"
       register: user_create_result
       changed_when: "'successfully' in user_create_result.stdout"
       when:
@@ -223,7 +239,7 @@
     - name: Enable IP forwarding on Proxmox
       ansible.posix.sysctl:
         name: net.ipv4.ip_forward
-        value: '1'
+        value: "1"
         sysctl_set: true
         state: present
         reload: true
@@ -232,20 +248,20 @@
       ansible.builtin.debug:
         msg: |
           ✅ OPNsense VM deployed and configured!
-          
+
           VM ID: {{ opnsense_vm_vmid }}
           VM Name: {{ opnsense_vm_name }}
           WAN IP: {{ opnsense_wan_ip }}
           LAN IP: {{ opnsense_lan_ip_cidr }}
-          
+
           Web UI Access:
             URL: https://{{ opnsense_lan_ip }}
             Username: {{ opnsense_admin_user }}
             Password: {{ opnsense_admin_password }}
-          
+
           SSH Access:
             ssh -J root@{{ ansible_host }} root@{{ opnsense_lan_ip }}
-          
+
           Next Steps:
           1. Add static route on your home router:
              Network: {{ opnsense_lan_ip_cidr }}

@@ -1,6 +1,5 @@
 ---
-# Helper playbook to detect Proxmox storage configuration
-- name: Detect Proxmox Storage
+- name: Detect Proxmox Storage Configuration
   hosts: proxmox
   become: true
   gather_facts: false
@@ -11,27 +10,26 @@
       register: storage_status
       changed_when: false
 
-    - name: Display storage information
-      ansible.builtin.debug:
-        msg: "{{ storage_status.stdout_lines }}"
-
     - name: Get detailed storage info
-      ansible.builtin.shell: |
-        echo "=== Storage Configuration ==="
-        pvesm status -content images
-        echo ""
-        echo "=== Recommended storage for OPNsense ==="
-        pvesm status -content images | awk 'NR>1 {print $1}' | head -1
+      ansible.builtin.shell:
+        cmd: |
+          set -o pipefail
+          echo "=== Storage Configuration ==="
+          pvesm status -content images
+          echo ""
+          echo "=== Recommended storage for OPNsense ==="
+          pvesm status -content images | awk 'NR>1 {print $1}' | head -1
+        executable: /bin/bash
       register: storage_detail
       changed_when: false
 
-    - name: Show recommendation
+    - name: Show storage recommendation
       ansible.builtin.debug:
         msg: |
           {{ storage_detail.stdout }}
-          
+
           To use this storage, set in your environment:
           export OPNSENSE_STORAGE="<storage-name-from-above>"
-          
+
           Or run:
           OPNSENSE_STORAGE="<storage-name>" make opnsense-cloudinit-template

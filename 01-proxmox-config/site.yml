@@ -1,0 +1,6 @@
+---
+- name: Bootstrap Proxmox configuration
+  import_playbook: 01-bootstrap-proxmox.yml
+
+- name: Detect Proxmox storage
+  import_playbook: 02-detect-storage.yml

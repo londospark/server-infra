@@ -6,9 +6,13 @@
 
   vars:
     opnsense_version: "{{ lookup('env', 'OPNSENSE_VERSION') | default('25.7', true) }}"
-    opnsense_image_source: "{{ lookup('env', 'OPNSENSE_IMAGE_SOURCE') | default('../02-opnsense-image/output/opnsense-' + opnsense_version + '-proxmox.qcow2', true) }}"
+    opnsense_image_source: >-
+      {{ lookup('env', 'OPNSENSE_IMAGE_SOURCE') | default(
+         '../02-opnsense-image/output/opnsense-' + opnsense_version + '-proxmox.qcow2',
+         true) }}
     opnsense_template_vmid: "{{ lookup('env', 'OPNSENSE_TEMPLATE_VMID') | default('9000', true) }}"
-    opnsense_template_name: "{{ lookup('env', 'OPNSENSE_TEMPLATE_NAME') | default('opnsense-cloudinit-template', true) }}"
+    opnsense_template_name: >-
+      {{ lookup('env', 'OPNSENSE_TEMPLATE_NAME') | default('opnsense-cloudinit-template', true) }}
     opnsense_storage: "{{ lookup('env', 'OPNSENSE_STORAGE') | default('local-zfs', true) }}"
     opnsense_img_dir: "/var/lib/vz/template/qcow"
 
@@ -46,9 +50,10 @@
 
     - name: Remove existing template if it exists
       ansible.builtin.command: qm destroy {{ opnsense_template_vmid }} --purge
-      when: 
+      when:
         - vm_exists.rc == 0
         - image_upload.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+      changed_when: true
 
     - name: Create OPNsense template VM
       ansible.builtin.command: >-
@@ -65,6 +70,7 @@
         --vga serial0
       register: qm_create
       when: vm_exists.rc != 0 or image_upload.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+      changed_when: true
 
     - name: Import OPNsense disk to storage
       ansible.builtin.command: >-
@@ -74,6 +80,7 @@
         --format qcow2
       register: qm_import
       when: qm_create.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+      changed_when: true
 
     - name: Get VM configuration
       ansible.builtin.command: qm config {{ opnsense_template_vmid }}
@@ -99,12 +106,13 @@
     - name: Convert VM to template
       ansible.builtin.command: qm template {{ opnsense_template_vmid }}
       when: qm_create.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+      changed_when: true
 
     - name: Display template information
       ansible.builtin.debug:
         msg: |
           ✅ OPNsense cloud-init template created!
-          
+
           Template ID: {{ opnsense_template_vmid }}
           Storage: {{ opnsense_storage }}
           Version: {{ opnsense_version }}

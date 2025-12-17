@@ -1,4 +1,3 @@
-- import_playbook: 01-post-boot-ansible/01-bootstrap-access.yml
-- import_playbook: 01-post-boot-ansible/02-remove-enterprise.yml
-- import_playbook: 01-post-boot-ansible/03-network-bridges.yml
-# OPNsense LAN reconfiguration (04-deploy-opnsense.yml) now runs separately via `make opnsense`
+---
+# Main playbook for Proxmox configuration
+- import_playbook: 03-proxmox-config/site.yml
