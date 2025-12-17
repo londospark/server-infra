@@ -49,9 +49,10 @@ variable "proxmox_storage" {
   type        = string
 }
 
-variable "template" {
-  description = "Template to clone from"
-  type        = string
+variable "template_vmid" {
+  description = "Template VM ID to clone from"
+  type        = number
+  default     = 9041
 }
 
 variable "gateway" {

@@ -45,7 +45,7 @@ module "docker_vms" {
 
   proxmox_node    = var.proxmox_node
   proxmox_storage = var.proxmox_storage
-  template        = var.fedora_template
+  template_vmid   = var.fedora_template_vmid
   gateway         = var.gateway
   nameserver      = var.nameserver
   domain          = var.domain

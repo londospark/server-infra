@@ -49,8 +49,8 @@ variable "domain" {
   default     = "home.lan"
 }
 
-variable "fedora_template" {
-  description = "Fedora cloud template name"
-  type        = string
-  default     = "fedora-41-cloud"
+variable "fedora_template_vmid" {
+  description = "Fedora cloud template VM ID"
+  type        = number
+  default     = 9041
 }

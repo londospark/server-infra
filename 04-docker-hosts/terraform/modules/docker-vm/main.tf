@@ -1,79 +1,75 @@
 terraform {
   required_providers {
     proxmox = {
-      source = "Telmate/proxmox"
+      source = "bpg/proxmox"
     }
   }
 }
 
-resource "proxmox_vm_qemu" "docker_vm" {
+resource "proxmox_virtual_environment_vm" "docker_vm" {
   name        = var.vm_name
-  vmid        = var.vmid
-  target_node = var.proxmox_node
-  desc        = var.description
+  vm_id       = var.vmid
+  node_name   = var.proxmox_node
+  description = var.description
 
   # Clone from template
-  clone      = var.template
-  full_clone = false
+  clone {
+    vm_id = var.template_vmid
+  }
 
   # CPU and memory
-  cores   = var.cores
-  sockets = 1
-  memory  = var.memory
-  cpu     = "host"
+  cpu {
+    cores = var.cores
+    type  = "host"
+  }
 
-  # Boot order
-  boot    = "order=scsi0"
-  agent   = 1
-  onboot  = true
-  oncreate = true
+  memory {
+    dedicated = var.memory
+  }
+
+  # Agent
+  agent {
+    enabled = true
+  }
+
+  # Boot and startup
+  on_boot = true
 
   # Disk
-  disks {
-    scsi {
-      scsi0 {
-        disk {
-          size    = var.disk_size
-          storage = var.proxmox_storage
-          iothread = true
-        }
-      }
-    }
-    ide {
-      ide2 {
-        cloudinit {
-          storage = var.proxmox_storage
-        }
-      }
-    }
+  disk {
+    datastore_id = var.proxmox_storage
+    interface    = "scsi0"
+    size         = parseint(replace(var.disk_size, "G", ""), 10)
+    file_format  = "raw"
+    iothread     = true
   }
 
   # Network
-  network {
-    model  = "virtio"
+  network_device {
     bridge = "vmbr1"
+    model  = "virtio"
   }
 
-  # Cloud-init configuration
-  ipconfig0  = "ip=${var.ip_address}/24,gw=${var.gateway}"
-  nameserver = var.nameserver
-  searchdomain = var.domain
+  # Cloud-init
+  initialization {
+    ip_config {
+      ipv4 {
+        address = "${var.ip_address}/24"
+        gateway = var.gateway
+      }
+    }
 
-  # SSH keys
-  sshkeys = var.ssh_public_key
+    dns {
+      servers = [var.nameserver]
+      domain  = var.domain
+    }
 
-  # Cloud-init user
-  ciuser  = "ansible"
-  cipassword = "temp-password-change-on-first-login"
+    user_account {
+      username = "ansible"
+      keys     = [var.ssh_public_key]
+    }
+  }
 
   # Tags
-  tags = join(";", var.tags)
-
-  # Lifecycle
-  lifecycle {
-    ignore_changes = [
-      network,
-      disks,
-    ]
-  }
+  tags = var.tags
 }

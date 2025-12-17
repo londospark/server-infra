@@ -45,14 +45,24 @@ Proxmox + OPNsense
    
    # Create template on Proxmox
    ssh root@192.168.1.2
-   qm create 9041 --name fedora-41-cloud --memory 2048 --net0 virtio,bridge=vmbr1
+   
+   # Create VM for template
+   qm create 9041 --name fedora-41-cloud --memory 2048 --cores 2 --net0 virtio,bridge=vmbr1
+   
+   # Import disk
    qm importdisk 9041 Fedora-Cloud-Base-Generic-41-1.4.x86_64.qcow2 local-zfs
+   
+   # Configure VM
    qm set 9041 --scsihw virtio-scsi-pci --scsi0 local-zfs:vm-9041-disk-0
    qm set 9041 --ide2 local-zfs:cloudinit
    qm set 9041 --boot c --bootdisk scsi0
    qm set 9041 --serial0 socket --vga serial0
    qm set 9041 --agent enabled=1
+   
+   # Convert to template
    qm template 9041
+   
+   # Note: VM ID 9041 is used in terraform/variables.tf (fedora_template_vmid)
    ```
 
 ## Quick Start

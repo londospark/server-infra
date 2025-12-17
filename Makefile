@@ -131,7 +131,7 @@ clean: ## Remove build artifacts
 
 # Testing and Validation
 .PHONY: test
-test: test-yaml test-ansible test-toml test-json test-docker ## Run all validation tests
+test: test-yaml test-ansible test-toml test-json test-docker test-terraform ## Run all validation tests
 
 .PHONY: test-yaml
 test-yaml: ## Validate YAML files
@@ -146,7 +146,11 @@ test-ansible: ## Validate Ansible playbooks
 	@export PROXMOX_HOST=dummy.example.com && \
 	ansible-playbook --syntax-check site.yml && \
 	ansible-playbook --syntax-check 01-proxmox-config/site.yml && \
-	ansible-playbook --syntax-check 03-opnsense-deployment/site.yml
+	ansible-playbook --syntax-check 03-opnsense-deployment/site.yml && \
+	ansible-playbook --syntax-check 04-docker-hosts/ansible/playbooks/bootstrap.yml && \
+	ansible-playbook --syntax-check 04-docker-hosts/ansible/playbooks/site.yml && \
+	ansible-playbook --syntax-check 04-docker-hosts/ansible/playbooks/deploy-stacks.yml && \
+	ansible-playbook --syntax-check 05-opnsense-wireguard/playbooks/setup-wireguard.yml
 	@echo "Ansible validation passed!"
 
 .PHONY: test-toml
@@ -163,7 +167,7 @@ test-toml: ## Validate TOML files
 .PHONY: test-json
 test-json: ## Validate JSON files
 	@echo "Validating JSON files..."
-	@find . -name "*.json" -not -path "./.git/*" -exec sh -c 'for file; do if jq empty "$$file" 2>/dev/null; then echo "✓ $$file"; else echo "✗ $$file"; exit 1; fi; done' sh {} +
+	@find . -name "*.json" -not -path "./.git/*" -not -path "./.terraform/*" -not -path "**/node_modules/*" -exec sh -c 'for file; do if jq empty "$$file" 2>/dev/null; then echo "✓ $$file"; else echo "✗ $$file"; exit 1; fi; done' sh {} +
 	@echo "JSON validation passed!"
 
 .PHONY: test-docker
@@ -174,6 +178,16 @@ test-docker: ## Validate docker-compose files
 		echo "✓ docker-compose.yml"; \
 	fi
 	@echo "Docker validation passed!"
+
+.PHONY: test-terraform
+test-terraform: ## Validate Terraform configurations
+	@echo "Validating Terraform configurations..."
+	@cd 04-docker-hosts/terraform && \
+		terraform init -backend=false > /dev/null && \
+		terraform fmt -check -recursive > /dev/null && \
+		terraform validate > /dev/null && \
+		echo "✓ Terraform configuration valid"
+	@echo "Terraform validation passed!"
 
 .PHONY: test-packer
 test-packer: ## Validate Packer templates

@@ -1,6 +1,6 @@
 output "vmid" {
   description = "VM ID"
-  value       = proxmox_vm_qemu.docker_vm.vmid
+  value       = proxmox_virtual_environment_vm.docker_vm.vm_id
 }
 
 output "ip_address" {
@@ -15,5 +15,5 @@ output "fqdn" {
 
 output "name" {
   description = "VM name"
-  value       = proxmox_vm_qemu.docker_vm.name
+  value       = proxmox_virtual_environment_vm.docker_vm.name
 }

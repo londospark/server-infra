@@ -2,9 +2,9 @@ output "docker_hosts" {
   description = "Docker host VMs information"
   value = {
     for vm_name, vm in module.docker_vms : vm_name => {
-      vmid       = vm.vmid
-      ip_address = vm.ip_address
-      fqdn       = vm.fqdn
+      vmid        = vm.vmid
+      ip_address  = vm.ip_address
+      fqdn        = vm.fqdn
       ssh_command = "ssh -i ~/.ssh/ansible_homelab ansible@${vm.ip_address}"
     }
   }
