@@ -52,7 +52,7 @@ resource "proxmox_virtual_environment_vm" "docker_vm" {
   # Cloud-init
   initialization {
     datastore_id = var.proxmox_storage
-    
+
     ip_config {
       ipv4 {
         address = "${var.ip_address}/24"

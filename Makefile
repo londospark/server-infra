@@ -199,7 +199,12 @@ test-terraform: ## Validate Terraform configurations
 		terraform init -backend=false > /dev/null && \
 		terraform fmt -check -recursive > /dev/null && \
 		terraform validate > /dev/null && \
-		echo "✓ Terraform configuration valid"
+		echo "✓ 04-docker-hosts/terraform"
+	@cd 04-docker-hosts/terraform-template && \
+		terraform init -backend=false > /dev/null && \
+		terraform fmt -check > /dev/null && \
+		terraform validate > /dev/null && \
+		echo "✓ 04-docker-hosts/terraform-template"
 	@echo "Terraform validation passed!"
 
 .PHONY: test-packer
