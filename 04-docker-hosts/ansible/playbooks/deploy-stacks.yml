@@ -1,0 +1,80 @@
+---
+# Deploy Docker Compose stacks
+- name: Deploy Docker Stacks
+  hosts: docker_hosts
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Create /opt/apps directory
+      ansible.builtin.file:
+        path: /opt/apps
+        state: directory
+        mode: '0755'
+        owner: ansible
+        group: ansible
+
+    - name: Deploy Traefik (all hosts)
+      ansible.builtin.include_role:
+        name: traefik
+      tags: [traefik, all]
+
+    - name: Deploy monitoring stack (all hosts)
+      ansible.builtin.include_role:
+        name: stack-monitoring
+      tags: [monitoring, all]
+
+- name: Deploy Home Management Stack
+  hosts: home-host
+  become: true
+  gather_facts: false
+  tags: [home]
+
+  tasks:
+    - name: Deploy Grocy
+      ansible.builtin.include_role:
+        name: stack-grocy
+
+    - name: Deploy Mealie
+      ansible.builtin.include_role:
+        name: stack-mealie
+
+    - name: Deploy Paperless-ngx
+      ansible.builtin.include_role:
+        name: stack-paperless
+
+- name: Deploy Development Stack
+  hosts: dev-host
+  become: true
+  gather_facts: false
+  tags: [dev]
+
+  tasks:
+    - name: Deploy Cloudflare Tunnel
+      ansible.builtin.include_role:
+        name: cloudflare-tunnel
+      when: lookup('env', 'CF_TUNNEL_TOKEN_DEV') | length > 0
+
+    - name: Deploy Portainer
+      ansible.builtin.include_role:
+        name: stack-portainer
+
+- name: Deploy Projects Stack
+  hosts: projects-host
+  become: true
+  gather_facts: false
+  tags: [projects]
+
+  tasks:
+    - name: Deploy Cloudflare Tunnel
+      ansible.builtin.include_role:
+        name: cloudflare-tunnel
+      when: lookup('env', 'CF_TUNNEL_TOKEN_PROJECTS') | length > 0
+
+    - name: Deploy Gitea
+      ansible.builtin.include_role:
+        name: stack-gitea
+
+    - name: Deploy Vikunja
+      ansible.builtin.include_role:
+        name: stack-vikunja

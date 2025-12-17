@@ -1,0 +1,47 @@
+---
+# Security role
+- name: Install fail2ban
+  ansible.builtin.dnf:
+    name: fail2ban
+    state: present
+
+- name: Configure fail2ban for SSH
+  ansible.builtin.copy:
+    content: |
+      [sshd]
+      enabled = true
+      port = ssh
+      logpath = /var/log/secure
+      maxretry = 5
+      bantime = 3600
+    dest: /etc/fail2ban/jail.d/sshd.conf
+    mode: '0644'
+  notify: Restart fail2ban
+
+- name: Enable and start fail2ban
+  ansible.builtin.systemd:
+    name: fail2ban
+    enabled: true
+    state: started
+
+- name: Configure firewalld default deny
+  ansible.posix.firewalld:
+    state: enabled
+    permanent: true
+    immediate: true
+    zone: public
+    masquerade: false
+
+- name: Allow HTTP in firewall
+  ansible.posix.firewalld:
+    service: http
+    permanent: true
+    state: enabled
+    immediate: true
+
+- name: Allow HTTPS in firewall
+  ansible.posix.firewalld:
+    service: https
+    permanent: true
+    state: enabled
+    immediate: true

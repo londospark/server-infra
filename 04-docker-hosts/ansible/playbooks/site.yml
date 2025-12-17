@@ -1,0 +1,15 @@
+---
+# Main playbook - Configure all docker hosts
+- name: Configure Docker Hosts
+  hosts: docker_hosts
+  become: true
+  gather_facts: true
+
+  roles:
+    - common
+    - docker
+    - monitoring
+    - security
+
+- name: Deploy Application Stacks
+  import_playbook: deploy-stacks.yml

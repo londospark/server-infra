@@ -54,6 +54,17 @@ else
 fi
 echo ""
 
+# Terraform for Docker hosts infrastructure
+echo -e "${YELLOW}Installing Terraform...${NC}"
+if ! command_exists terraform; then
+    # HashiCorp repo already added above
+    sudo apt install -y terraform
+    echo -e "${GREEN}✓${NC} Terraform installed"
+else
+    echo -e "${GREEN}✓${NC} Terraform is already installed"
+fi
+echo ""
+
 # Docker and Docker Compose for Proxmox installer
 echo -e "${YELLOW}Installing Docker and Docker Compose...${NC}"
 if ! command_exists docker; then
@@ -133,6 +144,7 @@ verify_command "python3" "Python"
 verify_command "pip3" "Pip"
 verify_command "ansible" "Ansible"
 verify_command "packer" "Packer"
+verify_command "terraform" "Terraform"
 verify_command "docker" "Docker"
 verify_command "yamllint" "yamllint"
 verify_command "jq" "jq"

@@ -1,0 +1,30 @@
+---
+# Traefik reverse proxy deployment
+- name: Create Traefik directories
+  ansible.builtin.file:
+    path: "{{ item }}"
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+  loop:
+    - /opt/apps/traefik
+    - /opt/apps/traefik/config
+    - /opt/apps/traefik/acme
+
+- name: Deploy Traefik configuration
+  ansible.builtin.template:
+    src: traefik.yml.j2
+    dest: /opt/apps/traefik/config/traefik.yml
+    mode: '0644'
+
+- name: Deploy Traefik docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/apps/traefik/docker-compose.yml
+    mode: '0644'
+
+- name: Start Traefik
+  community.docker.docker_compose_v2:
+    project_src: /opt/apps/traefik
+    state: present

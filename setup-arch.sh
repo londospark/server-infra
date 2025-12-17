@@ -70,6 +70,11 @@ echo -e "${YELLOW}Installing Packer...${NC}"
 install_package "packer"
 echo ""
 
+# Terraform for Docker hosts infrastructure
+echo -e "${YELLOW}Installing Terraform...${NC}"
+install_package "terraform"
+echo ""
+
 # Docker and Docker Compose for Proxmox installer
 echo -e "${YELLOW}Installing Docker and Docker Compose...${NC}"
 install_package "docker"
@@ -138,6 +143,7 @@ verify_command "python" "Python"
 verify_command "pip" "Pip"
 verify_command "ansible" "Ansible"
 verify_command "packer" "Packer"
+verify_command "terraform" "Terraform"
 verify_command "docker" "Docker"
 verify_command "docker-compose" "Docker Compose"
 verify_command "yamllint" "yamllint"

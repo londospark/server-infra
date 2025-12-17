@@ -1,67 +1,87 @@
-# Server Infrastructure
+# Server Infrastructure Automation
 
-Automated Proxmox and OPNsense deployment using Packer, Ansible, and cloud-init.
+Comprehensive infrastructure-as-code for a complete homelab setup with Proxmox, OPNsense, and Docker hosts.
 
-## Prerequisites
+## 🏗️ Architecture Overview
 
-- **Packer** - For building OPNsense image
-- **Ansible** - For automation
-- **Bitwarden CLI** (`bw`) - For secret management
-- **SSH key** - `~/.ssh/id_ed25519.pub`
+```
+Internet
+    ↓
+WAN Interface (192.168.1.0/24)
+    ↓
+Proxmox Host (192.168.1.2)
+    ├── OPNsense Firewall (VM)
+    │   ├── WAN: 192.168.1.1
+    │   ├── LAN: 10.0.0.1
+    │   └── VPN: 10.0.100.1 (WireGuard)
+    │
+    └── LAN Network (10.0.0.0/24)
+        ├── dev-host      (10.0.0.21) - Development + public apps
+        ├── home-host     (10.0.0.22) - Home management (Grocy!)
+        └── projects-host (10.0.0.23) - Project management tools
+```
 
-## Environment Setup
+## 📁 Directory Structure
 
-Copy the example environment file and configure:
+```
+server-infra/
+├── 00-proxmox-installer/      # Proxmox VE installation
+├── 01-proxmox-config/          # Proxmox initial configuration
+├── 02-opnsense-image/          # Build OPNsense cloud image with Packer
+├── 03-opnsense-deployment/     # Deploy OPNsense VM
+├── 04-docker-hosts/            # 🆕 Docker host VMs (Terraform + Ansible)
+├── 05-opnsense-wireguard/      # 🆕 WireGuard VPN setup
+└── setup-*.sh                  # OS-specific setup scripts
+```
+
+## 🚀 Quick Start
+
+### 1. Initial Setup
 
 ```bash
+# Set up your machine (choose one)
+./setup-arch.sh      # Arch Linux
+./setup-ubuntu.sh    # Ubuntu
+./setup-fedora.sh    # Fedora
+
+# Configure environment
 cp .envrc.example .envrc
 # Edit .envrc with your settings
-direnv allow  # if using direnv
+direnv allow
+
+# Create SSH key for automation
+ssh-keygen -t ed25519 -C "ansible-homelab" -f ~/.ssh/ansible_homelab
 ```
 
-Required environment variables:
-- `PROXMOX_HOST` - Proxmox IP address
-- `PROXMOX_STORAGE` - Storage name (e.g., local-lvm, local-zfs)
-- `OPNSENSE_ADMIN_PASSWORD` - WebUI password
-- `OPNSENSE_LAN_IP` - LAN interface IP (default: 10.0.0.1/24)
-- `OPNSENSE_WAN_IP` - WAN IP (dhcp or static IP)
+### 2. Deploy Infrastructure (In Order)
 
-## Quick Start
+1. **Install Proxmox** → `cd 00-proxmox-installer && make run`
+2. **Configure Proxmox** → `cd 01-proxmox-config && make bootstrap`
+3. **Build OPNsense** → `cd 02-opnsense-image && make build`
+4. **Deploy OPNsense** → `cd 03-opnsense-deployment && make deploy`
+5. **Deploy Docker Hosts** → `cd 04-docker-hosts && make all` ⭐ NEW!
+6. **Set Up VPN** → `cd 05-opnsense-wireguard && make setup-vpn` ⭐ NEW!
 
-1. **Create Proxmox Installer USB**
-   ```bash
-   make install-proxmox
-   ```
+## 🎯 What You Get
 
-2. **Configure Proxmox**
-   ```bash
-   make proxmox-config
-   ```
+- **Grocy** - Household management (groceries, recipes, tasks)
+- **Mealie** - Recipe manager  
+- **Paperless-ngx** - Document management
+- **Gitea** - Self-hosted Git
+- **Vikunja** - Project management
+- **Traefik** - Reverse proxy with auto-SSL
+- **WireGuard VPN** - Secure remote access
+- **Full automation** - Reproducible infrastructure
 
-3. **Deploy OPNsense**
-   ```bash
-   make opnsense-setup
-   ```
+## 📚 Documentation
 
-## Access
+- [00-proxmox-installer/README.md](00-proxmox-installer/README.md) - Proxmox installation
+- [01-proxmox-config/README.md](01-proxmox-config/README.md) - Proxmox configuration
+- [02-opnsense-image/README.md](02-opnsense-image/README.md) - OPNsense image building
+- [03-opnsense-deployment/README.md](03-opnsense-deployment/README.md) - OPNsense deployment
+- [04-docker-hosts/README.md](04-docker-hosts/README.md) ⭐ NEW! - Docker hosts setup
+- [05-opnsense-wireguard/README.md](05-opnsense-wireguard/README.md) ⭐ NEW! - WireGuard VPN
 
-**OPNsense WebUI:** https://10.0.0.1
-- Username: admin
-- Password: (from `$OPNSENSE_ADMIN_PASSWORD`)
+## License
 
-**Note:** Add static route on your home router:
-- Network: `10.0.0.0/24`
-- Gateway: Your Proxmox IP
-
-## Project Structure
-
-```
-├── 00-proxmox-installer/    # Proxmox USB installer
-├── 01-opnsense-image/       # Packer OPNsense cloud-init image
-├── 02-opnsense-deployment/  # Ansible OPNsense deployment
-└── 03-proxmox-config/       # Ansible Proxmox configuration
-```
-
-## Makefile Targets
-
-Run `make help` to see all available targets.
+MIT

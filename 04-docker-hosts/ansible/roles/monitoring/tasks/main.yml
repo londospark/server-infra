@@ -1,0 +1,19 @@
+---
+# Monitoring role - Install node exporter
+- name: Install Prometheus node exporter
+  ansible.builtin.dnf:
+    name: golang-github-prometheus-node-exporter
+    state: present
+
+- name: Enable and start node exporter
+  ansible.builtin.systemd:
+    name: node_exporter
+    enabled: true
+    state: started
+
+- name: Allow node exporter port in firewall
+  ansible.posix.firewalld:
+    port: 9100/tcp
+    permanent: true
+    state: enabled
+    immediate: true

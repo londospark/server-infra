@@ -9,13 +9,19 @@ help: ## Show this help message
 	@echo "  2. proxmox-config      - Bootstrap Proxmox (SSH keys, storage)"
 	@echo "  3. opnsense-build      - Build OPNsense cloud-init image"
 	@echo "  4. opnsense-deploy     - Deploy OPNsense VM to Proxmox"
+	@echo "  5. docker-hosts        - Deploy Docker host VMs (Terraform + Ansible)"
+	@echo "  6. vpn-setup           - Set up WireGuard VPN on OPNsense"
 	@echo ""
 	@echo "Combined targets:"
 	@echo "  opnsense-setup         - Build + deploy OPNsense (steps 3-4)"
-	@echo "  all                    - Complete setup (steps 2-4)"
+	@echo "  all                    - Complete setup (steps 2-6)"
+	@echo ""
+	@echo "VPN Management:"
+	@echo "  vpn-client NAME=laptop IP=10.0.100.10  - Create VPN client config"
 	@echo ""
 	@echo "Utilities:"
 	@echo "  detect-storage         - Show Proxmox storage options"
+	@echo "  test                   - Run all validation tests"
 	@echo "  clean                  - Remove build artifacts"
 	@echo ""
 
@@ -70,9 +76,45 @@ opnsense-setup: opnsense-build opnsense-deploy ## Build and deploy OPNsense fire
 	@echo "  Gateway: <Proxmox IP>"
 	@echo ""
 
+# Step 4: Deploy Docker Hosts
+.PHONY: docker-hosts
+docker-hosts: ## Deploy Docker host VMs with Terraform and Ansible
+	@echo "Deploying Docker hosts..."
+	@cd 04-docker-hosts && $(MAKE) all
+	@echo ""
+	@echo "=========================================="
+	@echo "Docker hosts deployed!"
+	@echo "=========================================="
+	@echo ""
+	@echo "Access your services:"
+	@echo "  Grocy:       http://10.0.0.22 or http://grocy.home.lan"
+	@echo "  Dev host:    http://10.0.0.21"
+	@echo "  Projects:    http://10.0.0.23"
+	@echo ""
+	@echo "Next: Set up VPN with 'make vpn-setup'"
+	@echo ""
+
+# Step 5: Setup WireGuard VPN
+.PHONY: vpn-setup
+vpn-setup: ## Set up WireGuard VPN on OPNsense
+	@echo "Setting up WireGuard VPN..."
+	@cd 05-opnsense-wireguard && $(MAKE) setup-vpn
+	@echo ""
+	@echo "=========================================="
+	@echo "VPN setup initiated!"
+	@echo "=========================================="
+	@echo ""
+	@echo "Follow the instructions to complete VPN setup in OPNsense web UI"
+	@echo "Create client configs with: make vpn-client NAME=laptop"
+	@echo ""
+
+.PHONY: vpn-client
+vpn-client: ## Create VPN client config (usage: make vpn-client NAME=laptop IP=10.0.100.10)
+	@cd 05-opnsense-wireguard && $(MAKE) client NAME=$(NAME) IP=$(IP)
+
 # Complete setup
 .PHONY: all
-all: proxmox-config opnsense-setup ## Complete infrastructure setup
+all: proxmox-config opnsense-setup docker-hosts vpn-setup ## Complete infrastructure setup
 
 # Utilities
 .PHONY: detect-storage

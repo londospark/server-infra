@@ -1,0 +1,30 @@
+---
+# Grocy stack deployment
+- name: Create Grocy app directory
+  ansible.builtin.file:
+    path: /opt/apps/grocy
+    state: directory
+    mode: '0755'
+    owner: ansible
+    group: ansible
+
+- name: Create Grocy data directory
+  ansible.builtin.file:
+    path: /opt/apps/grocy/data
+    state: directory
+    mode: '0755'
+    owner: 33  # www-data user ID in the container
+    group: 33
+
+- name: Deploy Grocy docker-compose file
+  ansible.builtin.template:
+    src: docker-compose.yml.j2
+    dest: /opt/apps/grocy/docker-compose.yml
+    mode: '0644'
+    owner: ansible
+    group: ansible
+
+- name: Start Grocy stack
+  community.docker.docker_compose_v2:
+    project_src: /opt/apps/grocy
+    state: present

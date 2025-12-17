@@ -1,0 +1,66 @@
+---
+# Configure WireGuard VPN on OPNsense
+- name: Configure WireGuard VPN
+  hosts: opnsense
+  gather_facts: false
+
+  vars:
+    wireguard_port: 51820
+    wireguard_network: "10.0.100.0/24"
+    wireguard_server_ip: "10.0.100.1"
+
+  tasks:
+    - name: Install WireGuard plugin
+      ansible.builtin.raw: |
+        pkg install -y os-wireguard
+      register: install_result
+      changed_when: "'already installed' not in install_result.stdout"
+
+    - name: Generate WireGuard server private key
+      ansible.builtin.raw: |
+        wg genkey
+      register: server_privkey
+      changed_when: false
+
+    - name: Generate WireGuard server public key
+      ansible.builtin.raw: |
+        echo "{{ server_privkey.stdout | trim }}" | wg pubkey
+      register: server_pubkey
+      changed_when: false
+
+    - name: Save server keys locally
+      delegate_to: localhost
+      ansible.builtin.copy:
+        content: |
+          Server Private Key: {{ server_privkey.stdout | trim }}
+          Server Public Key: {{ server_pubkey.stdout | trim }}
+        dest: ./wireguard-server-keys.txt
+        mode: '0600'
+
+    - name: Display WireGuard server keys
+      ansible.builtin.debug:
+        msg: |
+          =====================================
+          WireGuard Server Configuration
+          =====================================
+          Server Public Key: {{ server_pubkey.stdout | trim }}
+          Server Network: {{ wireguard_network }}
+          Server IP: {{ wireguard_server_ip }}
+          Listen Port: {{ wireguard_port }}
+          
+          Keys saved to: ./wireguard-server-keys.txt
+          
+          Next Steps:
+          1. Log into OPNsense web UI (https://10.0.0.1)
+          2. Go to VPN > WireGuard > Settings
+          3. Enable WireGuard
+          4. Create a new server instance:
+             - Name: HomeVPN
+             - Public Key: {{ server_pubkey.stdout | trim }}
+             - Private Key: (paste from wireguard-server-keys.txt)
+             - Listen Port: {{ wireguard_port }}
+             - Tunnel Address: {{ wireguard_server_ip }}/24
+          5. Create firewall rule on WAN to allow UDP port {{ wireguard_port }}
+          6. Create clients using: make wireguard-client NAME=laptop
+          
+          =====================================
