@@ -17,7 +17,8 @@ jobs:
         run: pip install yamllint
 
       - name: Validate YAML files
-        run: yamllint -d "{extends: default, rules: {line-length: {max: 200}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable}}" .
+        run: |
+          yamllint -d '{extends: default, rules: {line-length: {max: 200}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable}}' .
 
   ansible:
     runs-on: ubuntu-latest
