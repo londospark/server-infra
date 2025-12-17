@@ -1,0 +1,9 @@
+---
+# OPNsense Deployment Site Playbook
+# This playbook deploys OPNsense firewall to Proxmox
+
+- name: Deploy OPNsense cloud-init template to Proxmox
+  import_playbook: 01-deploy-template.yml
+
+- name: Clone and configure OPNsense VM (includes routing, SSH, and password setup)
+  import_playbook: 02-clone-and-configure.yml

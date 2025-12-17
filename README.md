@@ -1,276 +1,137 @@
-# Homelab Server Infrastructure
+# Server Infrastructure
 
-A collection of automation tools and configurations for building and managing a homelab server infrastructure with Proxmox VE. This project automates the complete setup from ISO creation to infrastructure-as-code readiness.
+Automated infrastructure setup for Proxmox with OPNsense firewall.
 
-## Project Structure
+## Overview
 
-- **[00-proxmox-installer](./00-proxmox-installer/README.md)** - Automated Proxmox VE ISO builder with pre-configured installation answers
-- **[01-post-boot-ansible](./01-post-boot-ansible/README.md)** - Post-install bootstrap: SSH access, Terraform token, community repo, and bridge setup
-- **[02-terraform](./02-terraform/)** - Legacy infrastructure as code configurations (optional)
-- **[03-opnsense-image](./03-opnsense-image/README.md)** - Packer-based OPNsense cloud-init image builder
-- **[04-opnsense-deployment](./04-opnsense-deployment/README.md)** - Ansible playbooks for deploying and configuring OPNsense VMs
+This repository automates the complete setup of a homelab infrastructure:
 
-Each folder contains its own README with detailed setup instructions.
+1. **Proxmox VE** - Hypervisor installation and configuration
+2. **OPNsense** - Firewall/router for VM network isolation
+3. **VM Network** - Isolated network (10.0.0.0/24) accessible from home network
 
-## Platform Support
+## Directory Structure
 
-This project is designed for **macOS and Linux** systems. Windows users should use **WSL2 (Windows Subsystem for Linux)** to run this infrastructure.
+- `00-proxmox-installer/` - Create Proxmox VE installer USB
+- `01-post-boot-ansible/` - Proxmox post-installation configuration
+- `02-opnsense-image/` - Build OPNsense cloud-init image with Packer
+- `03-opnsense-deployment/` - Deploy and configure OPNsense on Proxmox
 
-## Dependencies
+## Prerequisites
 
-### Global Requirements
+### Software Required
 
-- **Docker** (version 20.10+) - Container runtime
-- **Docker Compose** (version 2.0+) - Multi-container orchestration
-  - Installation: [Install Docker Desktop](https://www.docker.com/products/docker-desktop) or [install separately](https://docs.docker.com/compose/install/)
-- **Ansible** (version 2.9+) - Infrastructure automation
-  - Required collections: `community.general`, `ansible.posix` (installed via `make deps`)
-- **direnv** - Environment variable management
-- **Packer** (version 1.8+) - For building OPNsense cloud-init images
-  - Installation: [Install Packer](https://developer.hashicorp.com/packer/downloads)
-- **QEMU** - For Packer builds (required on build machine)
-  - macOS: `brew install qemu`
-  - Ubuntu/Debian: `apt-get install qemu-system qemu-utils`
+- **Ansible** (>= 2.9)
+- **Packer** (>= 1.9)
+- **Python 3** with `jq` package
+- **SSH access** to Proxmox host
 
-### Optional Tools
+### Environment Setup
 
-- **Git** - Version control (for cloning and managing this repository)
-- **Terraform** (version 1.0+) - For infrastructure as code (if using Terraform deployment)
-- **USB Flashing Tools** (for OS deployment):
-  - **Balena Etcher** - Cross-platform GUI tool (recommended)
-  - Platform-native tools: `dd` (Linux), `diskutil` (macOS)
-- **Bitwarden CLI** (`bw`) - For password management integration (future enhancement)
+1. Copy the example environment file:
+   ```bash
+   cp .envrc.example .envrc
+   ```
+
+2. Edit `.envrc` and set required variables:
+   ```bash
+   # Required
+   export PROXMOX_HOST="192.168.1.2"
+   export OPNSENSE_ADMIN_PASSWORD="your-secure-password"
+   
+   # Optional (defaults shown)
+   export OPNSENSE_VERSION="25.7"
+   export OPNSENSE_MIRROR="https://mirror.init7.net/opnsense"
+   export OPNSENSE_WAN_IP="dhcp"
+   export OPNSENSE_WAN_GATEWAY="192.168.1.1"
+   export OPNSENSE_LAN_IP="10.0.0.1"
+   export OPNSENSE_LAN_MASK="24"
+   export PROXMOX_STORAGE="local-lvm"
+   ```
+
+3. Load environment variables:
+   ```bash
+   source .envrc  # or use direnv
+   ```
 
 ## Quick Start
 
-1. Clone this repository:
-   ```bash
-   git clone <repository-url>
-   cd <path-to-cloned-repo>
-   ```
-   > Replace `<path-to-cloned-repo>` with the name of the directory you cloned into (e.g., `server-infra`)
+### Complete Setup
 
-2. **Install direnv** (if not already installed):
-   
-   **macOS**:
-   ```bash
-   brew install direnv
-   ```
-   
-   **Ubuntu/Debian**:
-   ```bash
-   sudo apt-get install direnv
-   ```
-   
-   **Fedora**:
-   ```bash
-   sudo dnf install direnv
-   ```
-   
-   **Arch Linux**:
-   ```bash
-   sudo pacman -S direnv
-   ```
-
-3. **Configure direnv for your shell**:
-   
-   > **Important**: After installing direnv, you must add a hook to your shell configuration for direnv to work automatically.
-   
-   **For bash** (`~/.bashrc`):
-   ```bash
-   eval "$(direnv hook bash)"
-   ```
-   
-   **For zsh** (`~/.zshrc`):
-   ```bash
-   eval "$(direnv hook zsh)"
-   ```
-   
-   **For fish** (`~/.config/fish/config.fish`):
-   ```bash
-   direnv hook fish | source
-   ```
-   
-   After adding the hook, reload your shell:
-   ```bash
-   exec $SHELL
-   ```
-
-4. **Prepare environment variables** (required before anything else):
-   - Copy the `.envrc.example` file to `.envrc`:
-     ```bash
-     cp .envrc.example .envrc
-     ```
-   - Edit `.envrc` and fill in the placeholder values:
-     - `PROXMOX_HOST` - IP address of your Proxmox host
-     - `PROXMOX_PASS` - Initial root password for Proxmox
-     - `PROXMOX_MAC` - MAC address of the Proxmox host
-     - `GATEWAY` - Gateway IP address
-     - `OPNSENSE_*` - (optional) defaults for post-boot LAN reconfig: source IP, SSH creds, and target LAN network
-
-5. **Generate SSH keys** (if you don't already have them):
-   ```bash
-   ssh-keygen -t ed25519 -f ~/.ssh/id_ed25519 -N ""
-   ```
-   This is required for the Ansible bootstrap phase and OPNsense cloud-init deployment.
-
-6. **Enable direnv** to load environment variables:
-   ```bash
-   direnv allow
-   ```
-   This loads the environment variables from `.envrc`, which are required for all subsequent operations.
-
-7. **Use the Makefile for convenient commands**:
-   ```bash
-   make help          # Show all available commands
-   make deps          # Install Ansible collections and dependencies
-   make iso           # Build the Proxmox ISO (Stage 0)
-   make bootstrap     # Run post-boot Ansible (user/role/token, repo swap)
-   make opnsense      # Reconfigure OPNsense LAN IP post-boot (default 192.168.1.1 -> 10.x.x.x)
-   make tf-init       # (Optional) init Terraform provider
-   make tf-plan       # (Optional) plan Terraform-defined OPNsense VM
-   make tf-apply      # (Optional) apply Terraform-defined OPNsense VM
-    make all           # Full stack: deps + iso + bootstrap + infra + opnsense
-   ```
-
-8. Or navigate to the subfolder for what you want to set up:
-   ```bash
-   cd 00-proxmox-installer
-   ```
-   and follow the README in that subfolder for detailed instructions.
-
-## System Requirements
-
-- **Supported OS**: macOS or Linux (including WSL2 on Windows)
-- **Minimum**: 8GB RAM, 20GB free disk space for builds
-- **Recommended**: 16GB+ RAM, 50GB+ free disk space
-- **Internet**: Required for downloading ISOs and packages
-
-### Windows Users
-
-If you're on Windows, install and use **WSL2 (Windows Subsystem for Linux)**:
-
-1. [Install WSL2](https://learn.microsoft.com/en-us/windows/wsl/install)
-2. Choose a Linux distribution (Ubuntu 22.04 LTS recommended)
-3. Clone this repository inside your WSL2 environment
-4. Follow the Quick Start guide above within your WSL2 terminal
-5. For flashing the ISO to USB, you can use Balena Etcher on Windows while keeping your build tools in WSL2
-   - The generated ISO file can be accessed from Windows via: `\\wsl$\<distro-name>\home\<username>\<path-to-cloned-repo>\00-proxmox-installer\proxmox-headless.iso`
-
-## OPNsense Deployment Options
-
-This project now supports **two methods** for deploying OPNsense:
-
-### Method 1: Cloud-Init Image (Recommended)
-
-**Advantages:**
-- ✅ Fully automated with cloud-init
-- ✅ SSH keys injected automatically
-- ✅ Network configured via cloud-init metadata
-- ✅ Admin user created automatically
-- ✅ No manual post-deployment configuration needed
-- ✅ Industry-standard cloud-init workflow
-
-**Workflow:**
 ```bash
-# Complete automated deployment (image build -> template -> VM -> configuration)
-make opnsense-vm
-
-# Or step by step:
-# 1. Build cloud-init enabled image with Packer and create template
-make opnsense-template
-
-# 2. Clone VM from template and configure (networking, SSH keys, admin user)
-make opnsense-vm
+make opnsense-setup
 ```
 
-**Access:**
-- SSH: `ssh -J root@<proxmox-ip> root@<lan-ip>` (using your SSH key)
-- Web UI: `https://<lan-ip>` (default: admin/opnsense - can be customized via env vars)
+This will:
+1. Build OPNsense cloud-init image (~15-20 minutes)
+2. Upload image to Proxmox
+3. Create template VM (ID 9000)
+4. Clone and configure OPNsense VM (ID 100)
+5. Set up networking and admin credentials
 
-**Note on Single-NIC Homelab Setup:**
-- If your Proxmox host has only one physical NIC, you'll need a static route on your home router
-- Route: `10.0.0.0/24` via `<proxmox-ip>` (e.g., `10.0.0.0/24` via `192.168.1.2`)
-- This allows your devices to access VMs behind OPNsense (10.0.0.x network)
-- Alternatively, add the route on each client machine that needs access
+### Step-by-Step
 
-**See:** [03-opnsense-image/README.md](./03-opnsense-image/README.md) and [04-opnsense-deployment/README.md](./04-opnsense-deployment/README.md)
+```bash
+# 1. Install Proxmox (if needed)
+make install-proxmox
 
-### Method 2: Nano Image (Legacy - No longer supported)
+# 2. Configure Proxmox
+make proxmox-setup
 
-Use the cloud-init method above for all new deployments.
+# 3. Build OPNsense Image
+make opnsense-image
 
-## Current Flow
+# 4. Deploy OPNsense
+make opnsense-deploy
+```
 
-### Recommended Flow (Cloud-Init)
+## Network Architecture
 
-1. **Build ISO**: `make iso` (optional if you already have Proxmox installed)
-2. **Bootstrap host**: `make bootstrap` (SSH key, Terraform API token, community repo, bridges)
-3. **Deploy OPNsense**: `make opnsense-vm` (builds image, creates template, clones VM, configures networking and admin user)
-4. **Configure home router**: Add static route for VM network (10.0.0.0/24 via <proxmox-ip>)
-5. **Access OPNsense**: SSH and web UI are immediately available
+```
+Home Network (192.168.1.x)
+    ↓
+  [Your Router] ← Proxmox vmbr0 (WAN) - OPNsense - vmbr1 (LAN) → VMs (10.0.0.x)
+    ↓
+ Proxmox Host (192.168.1.2)
+```
 
-### Legacy Flow (Nano Image)
+### Accessing VMs
 
-1. **Build ISO**: `make iso`
-2. **Bootstrap host**: `make bootstrap`
-3. Legacy method no longer supported - use cloud-init method above
+Add a static route on your home router:
+- Network: `10.0.0.0/24`
+- Gateway: `192.168.1.2` (Proxmox host)
 
+Then access directly:
+- OPNsense WebUI: `https://10.0.0.1`
+- VMs: Direct access at `10.0.0.x`
 
+## OPNsense Access
 
-## Work Completed
+- **WebUI**: `https://10.0.0.1`
+- **Username**: `admin`
+- **Password**: Value of `OPNSENSE_ADMIN_PASSWORD`
+- **SSH**: `ssh -J root@192.168.1.2 root@10.0.0.1`
 
-This project implements a complete Proxmox VE infrastructure automation pipeline:
+## Troubleshooting
 
-1. **ISO Automation** - Docker-based ISO builder downloads latest Proxmox VE, embeds pre-configured answers (`answer.toml`), and produces a headless-ready installation image
-2. **Ansible Bootstrap & Network** - Post-boot playbooks that:
-   - Install SSH public key for key-based authentication
-   - Create Terraform role/user/token and switch to community repository
-   - Configure vmbr0/vmbr1 bridges
-3. **OPNsense Cloud-Init Images** - Packer-based workflow to build production-ready OPNsense images with:
-   - Cloud-init support for automated deployment
-   - QEMU Guest Agent integration
-   - SSH key injection via cloud-init
-   - Automated network configuration (WAN DHCP or static, LAN static)
-   - First-boot script for initial setup
-4. **OPNsense Deployment** - Ansible playbooks for:
-   - Deploying OPNsense template to Proxmox
-   - Cloning and configuring VMs
-   - Creating admin users for OPNsense web UI
-   - Setting up routing for single-NIC homelab setups
-5. **Environment Management** - direnv integration for secure credential and variable management
-6. **Cross-Platform Support** - Works on macOS, Linux, and Windows (via WSL2)
+### Can't access 10.0.0.1
 
-## Known Gotchas & Important Notes
+Add route manually:
+```bash
+# Linux/Mac
+sudo ip route add 10.0.0.0/24 via 192.168.1.2
 
-### direnv Must Be Allowed First
-- `.envrc` must be processed with `direnv allow` before running any builds or playbooks
-- Docker Compose depends on `UID` and `GID` variables from `.envrc` - builds will fail silently without them
-- Environment variables are not inherited by child shells if direnv is not hooked into your shell
+# Windows (PowerShell as Admin)
+route add 10.0.0.0 mask 255.255.255.0 192.168.1.2
+```
 
-### Proxmox Installation Answers
-- The `answer.toml` in `00-proxmox-installer` uses static network configuration (`source = "from-answer"`)
-- Network settings (`cidr`, `gateway`, `filter.ID_NET_NAME_MAC`) are placeholders and must be filled in `.envrc` before building
-- Root password placeholder in `answer.toml` is replaced by `PROXMOX_PASS` environment variable
-- ZFS RAID configuration in `answer.toml` requires multiple disks; adjust `disk_list` and `zfs.raid` for your hardware
+### Clean and Rebuild
 
-### Ansible Bootstrap Notes
-- Initial SSH connection uses password authentication (requires `PROXMOX_PASS` and `PROXMOX_HOST`)
-- SSH key generation (`ssh-keygen`) must complete before running the playbook
-- API token is automatically appended to `.envrc` - you must run `direnv allow` again after the playbook completes
-- The playbook modifies `.envrc` directly; back it up if you have custom additions
-
-### USB Flashing
-- Ensure USB stick is at least 8GB
-- On Linux with `dd`, use the device (`/dev/sdX`), not the partition (`/dev/sdX1`)
-- macOS users should use `rdiskX` for `dd` (faster) instead of `diskX`
-- Windows users building in WSL2 can access the ISO via UNC path: `\\wsl$\<distro>\home\<user>\path\to\proxmox-headless.iso`
-
-### Repository Transitions
-- Proxmox defaults to enterprise repository (requires valid subscription)
-- The Ansible playbook includes `02-remove-enterprise.yml` to switch to community repo automatically
-- If you have a subscription, you can skip this step or customize the playbook
+```bash
+make clean
+make opnsense-setup
+```
 
 ## License
 
-MIT License - See LICENSE file for details.
+MIT License

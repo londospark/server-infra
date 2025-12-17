@@ -6,7 +6,7 @@
 
   vars:
     opnsense_version: "{{ lookup('env', 'OPNSENSE_VERSION') | default('25.7', true) }}"
-    opnsense_image_source: "{{ lookup('env', 'OPNSENSE_IMAGE_SOURCE') | default('../03-opnsense-image/output/opnsense-' + opnsense_version + '-proxmox.qcow2', true) }}"
+    opnsense_image_source: "{{ lookup('env', 'OPNSENSE_IMAGE_SOURCE') | default('../02-opnsense-image/output/opnsense-' + opnsense_version + '-proxmox.qcow2', true) }}"
     opnsense_template_vmid: "{{ lookup('env', 'OPNSENSE_TEMPLATE_VMID') | default('9000', true) }}"
     opnsense_template_name: "{{ lookup('env', 'OPNSENSE_TEMPLATE_NAME') | default('opnsense-cloudinit-template', true) }}"
     opnsense_storage: "{{ lookup('env', 'OPNSENSE_STORAGE') | default('local-zfs', true) }}"

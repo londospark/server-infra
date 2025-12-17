@@ -1,62 +1,49 @@
-.PHONY: all deps iso bootstrap opnsense infra opnsense-template opnsense-vm help
-.PHONY: packer-image packer-clean opnsense-cloudinit-template opnsense-cloudinit-vm
-.PHONY: tf-init tf-plan tf-apply tf-destroy tf-cloudinit-init tf-cloudinit-plan tf-cloudinit-apply
-
-TF_NET_DIR := 02-terraform/01-network-layer
-TF_OPNSENSE_CI_DIR := 02-terraform/02-opnsense-cloudinit
-PACKER_DIR := 03-opnsense-image
-OPNSENSE_DEPLOY_DIR := 04-opnsense-deployment
-
+.PHONY: help
 help: ## Show this help message
-	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-30s %s\n", $$1, $$2}'
+	@echo "Server Infrastructure Setup"
+	@echo ""
+	@echo "Available targets:"
+	@echo "  install-proxmox    - Create Proxmox installer USB"
+	@echo "  proxmox-setup      - Configure Proxmox post-installation"
+	@echo "  opnsense-setup     - Build and deploy OPNsense firewall (full setup)"
+	@echo ""
+	@echo "Individual OPNsense steps:"
+	@echo "  opnsense-image     - Build OPNsense cloud-init image with Packer"
+	@echo "  opnsense-deploy    - Deploy OPNsense template and VM to Proxmox"
+	@echo ""
+	@echo "Utilities:"
+	@echo "  clean              - Clean build artifacts"
 
-deps: ## Install Ansible collections
-	@echo "Installing Ansible Galaxy requirements..."
-	@ansible-galaxy collection install -r requirements.yml -p ./ansible_collections --force
-	@echo "Done."
+# 00: Proxmox Installer
+.PHONY: install-proxmox
+install-proxmox: ## Create Proxmox installer USB
+	@echo "Creating Proxmox installer USB..."
+	cd 00-proxmox-installer && $(MAKE) create-usb
 
-iso: ## Build the Proxmox ISO
-	@echo "Building ISO..."
-	@cd 00-proxmox-installer && docker compose up --build
+# Ansible dependencies
+.PHONY: ansible-deps
+ansible-deps: ## Install Ansible dependencies
+	@echo "Installing Ansible dependencies..."
+	ansible-galaxy install -r requirements.yml
 
-bootstrap: ## Run Post-Install Ansible
-	@echo "Bootstrapping Proxmox..."
-	@ansible-playbook site.yml
+# 01: Post-boot Ansible Setup
+.PHONY: proxmox-setup
+proxmox-setup: ansible-deps ## Configure Proxmox post-installation
+	@echo "Running Proxmox setup playbooks..."
+	ansible-playbook -i inventory 01-post-boot-ansible/site.yml
 
-
-
-tf-init: ## Initialize Terraform (legacy / optional)
-	@echo "Initializing Terraform in $(TF_NET_DIR)..."
-	@cd $(TF_NET_DIR) && terraform init -upgrade
-
-tf-plan: ## Plan Terraform changes (legacy / optional)
-	@echo "Planning changes for $(TF_NET_DIR)..."
-	@cd $(TF_NET_DIR) && terraform plan
-
-tf-apply: ## Apply Terraform changes (legacy / optional)
-	@echo "Applying Infrastructure..."
-	@cd $(TF_NET_DIR) && terraform apply -auto-approve
-
-tf-destroy: ## Destroy Terraform infrastructure (legacy / optional)
-	@echo "Destroying Infrastructure..."
-	@cd $(TF_NET_DIR) && terraform destroy
-
-infra: opnsense-cloudinit-template opnsense-cloudinit-vm ## Provision Network Layer (build cloud-init template + clone via Ansible)
-
-all: deps iso bootstrap infra ## Run Full Stack
-
-packer-image: ## Build OPNsense cloud-init image with Packer
+# 02: OPNsense Image Building
+.PHONY: opnsense-image
+opnsense-image: ## Build OPNsense cloud-init image with Packer
 	@echo "Building OPNsense cloud-init image with Packer..."
 	@PKR_VAR_VERSION=$${PKR_VAR_VERSION:-25.7}; \
 	PKR_VAR_MIRROR=$${PKR_VAR_MIRROR:-https://mirror.init7.net/opnsense}; \
-	OUTPUT_FILE="$(PACKER_DIR)/output/opnsense-$${PKR_VAR_VERSION}-proxmox.qcow2"; \
+	OUTPUT_FILE="02-opnsense-image/output/opnsense-$${PKR_VAR_VERSION}-proxmox.qcow2"; \
 	if [ -f "$$OUTPUT_FILE" ]; then \
 		echo "Image already exists: $$OUTPUT_FILE"; \
-		echo "Skipping build. To rebuild, run: rm -rf $(PACKER_DIR)/output"; \
+		echo "Skipping build. To rebuild, run: make clean"; \
 	else \
-		echo "Setting default OPNsense version to $${PKR_VAR_VERSION}"; \
-		echo "Setting default mirror to $${PKR_VAR_MIRROR}"; \
-		cd $(PACKER_DIR) && \
+		cd 02-opnsense-image && \
 		PKR_VAR_VERSION=$${PKR_VAR_VERSION} \
 		PKR_VAR_MIRROR=$${PKR_VAR_MIRROR} \
 		packer init . && \
@@ -67,31 +54,33 @@ packer-image: ## Build OPNsense cloud-init image with Packer
 		packer build -force .; \
 	fi
 
-opnsense-template: packer-image ## Build and deploy OPNsense cloud-init template
-	@echo "Deploying OPNsense cloud-init template to Proxmox..."
-	@ansible-playbook $(OPNSENSE_DEPLOY_DIR)/deploy-template.yml
+# 03: OPNsense Deployment
+.PHONY: opnsense-deploy
+opnsense-deploy: ansible-deps ## Deploy OPNsense to Proxmox
+	@echo "Deploying OPNsense to Proxmox..."
+	ansible-playbook -i inventory 03-opnsense-deployment/site.yml
 
-opnsense-vm: opnsense-template ## Clone, configure, and deploy OPNsense VM
-	@echo "Deploying OPNsense VM..."
-	@ansible-playbook $(OPNSENSE_DEPLOY_DIR)/clone-and-configure.yml
+# Complete OPNsense setup
+.PHONY: opnsense-setup
+opnsense-setup: opnsense-image opnsense-deploy ## Complete OPNsense setup (image + deploy)
+	@echo ""
+	@echo "=========================================="
+	@echo "OPNsense setup complete!"
+	@echo "=========================================="
+	@echo ""
+	@echo "Access OPNsense WebUI at: https://10.0.0.1"
+	@echo "Username: admin"
+	@echo "Password: Set via OPNSENSE_ADMIN_PASSWORD environment variable"
+	@echo ""
+	@echo "Note: Add static route on your home router:"
+	@echo "  Network: 10.0.0.0/24"
+	@echo "  Gateway: 192.168.1.2 (Proxmox host)"
+	@echo ""
 
-opnsense-deploy: opnsense-vm ## Complete OPNsense deployment (alias for opnsense-vm)
-
-tf-cloudinit-init: ## Initialize Terraform for cloud-init OPNsense
-	@echo "Initializing Terraform in $(TF_OPNSENSE_CI_DIR)..."
-	@cd $(TF_OPNSENSE_CI_DIR) && terraform init -upgrade
-
-tf-cloudinit-plan: ## Plan Terraform changes for cloud-init OPNsense
-	@echo "Planning changes for $(TF_OPNSENSE_CI_DIR)..."
-	@cd $(TF_OPNSENSE_CI_DIR) && terraform plan
-
-tf-cloudinit-apply: ## Apply Terraform changes for cloud-init OPNsense
-	@echo "Applying Infrastructure for cloud-init OPNsense..."
-	@cd $(TF_OPNSENSE_CI_DIR) && terraform apply -auto-approve
-
-packer-clean: ## Clean Packer build artifacts (ISO and output)
-	@echo "Cleaning Packer build artifacts..."
-	@rm -rf $(PACKER_DIR)/iso $(PACKER_DIR)/output $(PACKER_DIR)/packer_cache
+.PHONY: clean
+clean: ## Clean build artifacts
+	@echo "Cleaning build artifacts..."
+	rm -rf 02-opnsense-image/iso
+	rm -rf 02-opnsense-image/output
+	rm -rf 02-opnsense-image/packer_cache
 	@echo "Cleaned: ISO files, output directory, and Packer cache"
-
-packer-rebuild: packer-clean packer-image ## Force rebuild of OPNsense image
