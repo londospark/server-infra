@@ -5,6 +5,7 @@
 TF_NET_DIR := 02-terraform/01-network-layer
 TF_OPNSENSE_CI_DIR := 02-terraform/02-opnsense-cloudinit
 PACKER_DIR := 03-opnsense-image
+OPNSENSE_DEPLOY_DIR := 04-opnsense-deployment
 
 help: ## Show this help message
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | sort | awk 'BEGIN {FS = ":.*?## "}; {printf "%-30s %s\n", $$1, $$2}'
@@ -68,11 +69,11 @@ packer-image: ## Build OPNsense cloud-init image with Packer
 
 opnsense-template: packer-image ## Build and deploy OPNsense cloud-init template
 	@echo "Deploying OPNsense cloud-init template to Proxmox..."
-	@ansible-playbook 01-post-boot-ansible/05-opnsense-deploy-template.yml
+	@ansible-playbook $(OPNSENSE_DEPLOY_DIR)/deploy-template.yml
 
 opnsense-vm: opnsense-template ## Clone, configure, and deploy OPNsense VM
 	@echo "Deploying OPNsense VM..."
-	@ansible-playbook 01-post-boot-ansible/06-opnsense-clone-and-configure.yml
+	@ansible-playbook $(OPNSENSE_DEPLOY_DIR)/clone-and-configure.yml
 
 opnsense-deploy: opnsense-vm ## Complete OPNsense deployment (alias for opnsense-vm)
 

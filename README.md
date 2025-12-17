@@ -5,11 +5,10 @@ A collection of automation tools and configurations for building and managing a 
 ## Project Structure
 
 - **[00-proxmox-installer](./00-proxmox-installer/README.md)** - Automated Proxmox VE ISO builder with pre-configured installation answers
-- **[01-post-boot-ansible](./01-post-boot-ansible/README.md)** - Post-install bootstrap: SSH access, Terraform token, community repo, bridge setup, and OPNsense deployment/configuration
-- **[02-terraform](./02-terraform/)** - Infrastructure as Code configurations
-  - **[01-network-layer](./02-terraform/01-network-layer/)** - Legacy OPNsense VM (nano image based)
-  - **[02-opnsense-cloudinit](./02-terraform/02-opnsense-cloudinit/)** - **NEW**: Cloud-init enabled OPNsense deployment
-- **[03-opnsense-image](./03-opnsense-image/README.md)** - **NEW**: Packer-based OPNsense cloud-init image builder
+- **[01-post-boot-ansible](./01-post-boot-ansible/README.md)** - Post-install bootstrap: SSH access, Terraform token, community repo, and bridge setup
+- **[02-terraform](./02-terraform/)** - Legacy infrastructure as code configurations (optional)
+- **[03-opnsense-image](./03-opnsense-image/README.md)** - Packer-based OPNsense cloud-init image builder
+- **[04-opnsense-deployment](./04-opnsense-deployment/README.md)** - Ansible playbooks for deploying and configuring OPNsense VMs
 
 Each folder contains its own README with detailed setup instructions.
 
@@ -162,7 +161,7 @@ If you're on Windows, install and use **WSL2 (Windows Subsystem for Linux)**:
 
 This project now supports **two methods** for deploying OPNsense:
 
-### Method 1: Cloud-Init Image (Recommended - NEW!)
+### Method 1: Cloud-Init Image (Recommended)
 
 **Advantages:**
 - ✅ Fully automated with cloud-init
@@ -171,12 +170,11 @@ This project now supports **two methods** for deploying OPNsense:
 - ✅ Admin user created automatically
 - ✅ No manual post-deployment configuration needed
 - ✅ Industry-standard cloud-init workflow
-- ✅ Works with Ansible and Terraform
 
 **Workflow:**
 ```bash
 # Complete automated deployment (image build -> template -> VM -> configuration)
-make opnsense-deploy
+make opnsense-vm
 
 # Or step by step:
 # 1. Build cloud-init enabled image with Packer and create template
@@ -196,27 +194,11 @@ make opnsense-vm
 - This allows your devices to access VMs behind OPNsense (10.0.0.x network)
 - Alternatively, add the route on each client machine that needs access
 
-**See:** [03-opnsense-image/README.md](./03-opnsense-image/README.md)
+**See:** [03-opnsense-image/README.md](./03-opnsense-image/README.md) and [04-opnsense-deployment/README.md](./04-opnsense-deployment/README.md)
 
-### Method 2: Nano Image (Legacy)
+### Method 2: Nano Image (Legacy - No longer supported)
 
-**Workflow:**
-```bash
-# 1. Download nano image and create template
-make opnsense-template
-
-# 2. Clone VM from template
-make opnsense-vm
-
-# 3. Manually reconfigure LAN IP
-make opnsense
-```
-
-**Limitations:**
-- ⚠️ No cloud-init support
-- ⚠️ Manual SSH key setup required
-- ⚠️ Post-deployment LAN reconfiguration needed
-- ⚠️ Smaller image size (~500MB vs ~1.4GB)
+Use the cloud-init method above for all new deployments.
 
 ## Current Flow
 
@@ -224,19 +206,15 @@ make opnsense
 
 1. **Build ISO**: `make iso` (optional if you already have Proxmox installed)
 2. **Bootstrap host**: `make bootstrap` (SSH key, Terraform API token, community repo, bridges)
-3. **Deploy OPNsense**: `make opnsense-deploy` (builds image, creates template, clones VM, configures networking and admin user)
-   - Or manually: `make opnsense-template` then `make opnsense-vm`
-4. **Configure home router**: Add static route for VM network (10.0.0.0/24 via <opnsense-wan-ip>)
+3. **Deploy OPNsense**: `make opnsense-vm` (builds image, creates template, clones VM, configures networking and admin user)
+4. **Configure home router**: Add static route for VM network (10.0.0.0/24 via <proxmox-ip>)
 5. **Access OPNsense**: SSH and web UI are immediately available
 
 ### Legacy Flow (Nano Image)
 
 1. **Build ISO**: `make iso`
 2. **Bootstrap host**: `make bootstrap`
-3. **Prepare template**: `make opnsense-template` (downloads nano image)
-4. **Clone VM**: `make opnsense-vm` (Ansible full clone)
-5. **Reconfigure LAN**: `make opnsense` (manual post-boot step)
-6. **Terraform (optional)**: `make tf-init && make tf-plan`
+3. Legacy method no longer supported - use cloud-init method above
 
 
 
@@ -249,18 +227,17 @@ This project implements a complete Proxmox VE infrastructure automation pipeline
    - Install SSH public key for key-based authentication
    - Create Terraform role/user/token and switch to community repository
    - Configure vmbr0/vmbr1 bridges
-   - Deploy OPNsense templates and VMs
-   - Create admin users for OPNsense web UI
-   - Configure routing for single-NIC homelab setups
-3. **OPNsense Cloud-Init Images** - **NEW**: Packer-based workflow to build production-ready OPNsense images with:
+3. **OPNsense Cloud-Init Images** - Packer-based workflow to build production-ready OPNsense images with:
    - Cloud-init support for automated deployment
    - QEMU Guest Agent integration
    - SSH key injection via cloud-init
    - Automated network configuration (WAN DHCP or static, LAN static)
    - First-boot script for initial setup
-4. **Terraform IaC** - Multiple deployment options:
-   - Legacy nano image-based deployment
-   - **NEW**: Cloud-init enabled deployment with full automation
+4. **OPNsense Deployment** - Ansible playbooks for:
+   - Deploying OPNsense template to Proxmox
+   - Cloning and configuring VMs
+   - Creating admin users for OPNsense web UI
+   - Setting up routing for single-NIC homelab setups
 5. **Environment Management** - direnv integration for secure credential and variable management
 6. **Cross-Platform Support** - Works on macOS, Linux, and Windows (via WSL2)
 
