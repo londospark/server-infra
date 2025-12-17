@@ -29,3 +29,16 @@ export OPNSENSE_LAN_MASK="24"
 # Admin user credentials for OPNsense web UI
 export OPNSENSE_ADMIN_USER="admin"
 export OPNSENSE_ADMIN_PASSWORD="changeme_please"
+
+# --- DOCKER HOSTS CONFIGURATION ---
+export TF_VAR_proxmox_node="pve"
+export TF_VAR_proxmox_storage="local-zfs"
+export TF_VAR_ssh_public_key="$(cat ~/.ssh/ansible_homelab.pub 2>/dev/null || echo 'REPLACE_WITH_YOUR_SSH_PUBLIC_KEY')"
+export TF_VAR_gateway="10.0.0.1"
+export TF_VAR_nameserver="10.0.0.1"
+export TF_VAR_domain="home.lan"
+export TF_VAR_fedora_template_vmid="9041"
+
+# --- CLOUDFLARE TUNNELS (OPTIONAL) ---
+# export CF_TUNNEL_TOKEN_DEV="your-dev-tunnel-token"
+# export CF_TUNNEL_TOKEN_PROJECTS="your-projects-tunnel-token"
