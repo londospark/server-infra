@@ -1,0 +1,120 @@
+name: Validate Configuration Files
+
+on:
+  push:
+    branches: [ main, master ]
+  pull_request:
+    branches: [ main, master ]
+
+jobs:
+  validate-yaml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install yamllint
+        run: pip install yamllint
+
+      - name: Validate YAML files
+        run: |
+          yamllint -d "{extends: default, rules: {line-length: {max: 160}, indentation: {spaces: 2}}}" \
+            *.yml \
+            **/*.yml \
+            **/*.yaml
+
+  validate-ansible:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install Ansible
+        run: pip install ansible
+
+      - name: Validate Ansible playbooks
+        run: |
+          ansible-playbook --syntax-check site.yml
+          ansible-playbook --syntax-check 01-proxmox-config/site.yml
+          ansible-playbook --syntax-check 03-opnsense-deployment/site.yml
+
+  validate-toml:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+
+      - name: Install TOML parser
+        run: pip install toml
+
+      - name: Validate TOML files
+        run: |
+          python -c "
+          import toml
+          import sys
+          import os
+          
+          toml_files = []
+          for root, dirs, files in os.walk('.'):
+              if '.git' in root:
+                  continue
+              for file in files:
+                  if file.endswith('.toml'):
+                      toml_files.append(os.path.join(root, file))
+          
+          failed = False
+          for f in toml_files:
+              try:
+                  with open(f, 'r') as fp:
+                      toml.load(fp)
+                  print(f'✓ {f}')
+              except Exception as e:
+                  print(f'✗ {f}: {e}')
+                  failed = True
+          
+          sys.exit(1 if failed else 0)
+          "
+
+  validate-json:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Install jq
+        run: sudo apt-get update && sudo apt-get install -y jq
+
+      - name: Validate JSON files
+        run: |
+          find . -name "*.json" -not -path "./.git/*" -exec sh -c '
+            for file; do
+              if jq empty "$file" 2>/dev/null; then
+                echo "✓ $file"
+              else
+                echo "✗ $file"
+                exit 1
+              fi
+            done
+          ' sh {} +
+
+  validate-docker-compose:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Validate docker-compose files
+        run: |
+          if [ -f "00-proxmox-installer/docker-compose.yml" ]; then
+            docker compose -f 00-proxmox-installer/docker-compose.yml config --quiet
+          fi
