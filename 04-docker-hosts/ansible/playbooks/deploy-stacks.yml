@@ -3,7 +3,7 @@
 - name: Deploy Docker Stacks
   hosts: docker_hosts
   become: true
-  gather_facts: false
+  gather_facts: true
 
   tasks:
     - name: Create /opt/apps directory

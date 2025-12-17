@@ -1,19 +1,22 @@
 ---
 # Monitoring role - Install node exporter
-- name: Install Prometheus node exporter
+
+# Note: Using Podman exporter for Fedora 41
+# For dedicated node metrics, can deploy Prometheus node-exporter via Docker later
+- name: Install Prometheus Podman exporter
   ansible.builtin.dnf:
-    name: golang-github-prometheus-node-exporter
+    name: prometheus-podman-exporter
     state: present
 
-- name: Enable and start node exporter
+- name: Enable and start Podman exporter
   ansible.builtin.systemd:
-    name: node_exporter
+    name: prometheus-podman-exporter
     enabled: true
     state: started
 
-- name: Allow node exporter port in firewall
+- name: Allow Podman exporter port in firewall
   ansible.posix.firewalld:
-    port: 9100/tcp
+    port: 9882/tcp
     permanent: true
     state: enabled
     immediate: true

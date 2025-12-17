@@ -41,7 +41,6 @@ resource "proxmox_virtual_environment_vm" "docker_vm" {
     interface    = "scsi0"
     size         = parseint(replace(var.disk_size, "G", ""), 10)
     file_format  = "raw"
-    iothread     = true
   }
 
   # Network
@@ -52,6 +51,8 @@ resource "proxmox_virtual_environment_vm" "docker_vm" {
 
   # Cloud-init
   initialization {
+    datastore_id = var.proxmox_storage
+    
     ip_config {
       ipv4 {
         address = "${var.ip_address}/24"

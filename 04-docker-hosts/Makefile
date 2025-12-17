@@ -9,9 +9,18 @@ NC := \033[0m # No Color
 help: ## Show this help message
 	@echo "$(GREEN)Docker Hosts Management$(NC)"
 	@echo ""
+	@echo "$(BLUE)Setup:$(NC)"
+	@echo "  $(YELLOW)create-template$(NC)  - Create Fedora 41 cloud template on Proxmox"
+	@echo ""
 	@echo "$(BLUE)Terraform Commands:$(NC)"
 	@grep -E '^[a-zA-Z_-]+:.*?## .*$$' $(MAKEFILE_LIST) | \
 		awk 'BEGIN {FS = ":.*?## "}; {printf "  $(YELLOW)%-20s$(NC) %s\n", $$1, $$2}'
+
+create-template: ## Create Fedora 41 cloud template on Proxmox
+	@echo "Creating Fedora 41 template with Terraform..."
+	@cd terraform-template && $(MAKE) create-template
+	@echo ""
+	@echo "✓ Template ready! Now run: make all"
 
 init: ## Initialize Terraform
 	cd terraform && terraform init
@@ -25,7 +34,7 @@ apply: ## Create/update infrastructure
 	@echo "$(YELLOW)Waiting 60 seconds for cloud-init to complete...$(NC)"
 	@sleep 60
 	@echo "$(GREEN)Generating Ansible inventory...$(NC)"
-	cd terraform && terraform output ansible_inventory > ../ansible/inventory/hosts.yml
+	cd terraform && terraform output -raw ansible_inventory > ../ansible/inventory/hosts.yml
 	@echo "$(GREEN)Infrastructure ready!$(NC)"
 	@echo "$(YELLOW)Next: make configure$(NC)"
 

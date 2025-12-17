@@ -9,12 +9,13 @@ help: ## Show this help message
 	@echo "  2. proxmox-config      - Bootstrap Proxmox (SSH keys, storage)"
 	@echo "  3. opnsense-build      - Build OPNsense cloud-init image"
 	@echo "  4. opnsense-deploy     - Deploy OPNsense VM to Proxmox"
-	@echo "  5. docker-hosts        - Deploy Docker host VMs (Terraform + Ansible)"
-	@echo "  6. vpn-setup           - Set up WireGuard VPN on OPNsense"
+	@echo "  5. docker-template     - Create Fedora 41 cloud template"
+	@echo "  6. docker-hosts        - Deploy Docker host VMs (Terraform + Ansible)"
+	@echo "  7. vpn-setup           - Set up WireGuard VPN on OPNsense"
 	@echo ""
 	@echo "Combined targets:"
 	@echo "  opnsense-setup         - Build + deploy OPNsense (steps 3-4)"
-	@echo "  all                    - Complete setup (steps 2-6)"
+	@echo "  all                    - Complete setup (steps 2-7)"
 	@echo ""
 	@echo "VPN Management:"
 	@echo "  vpn-client NAME=laptop IP=10.0.100.10  - Create VPN client config"
@@ -94,6 +95,18 @@ docker-hosts: ## Deploy Docker host VMs with Terraform and Ansible
 	@echo "Next: Set up VPN with 'make vpn-setup'"
 	@echo ""
 
+.PHONY: docker-template
+docker-template: ## Create Fedora 41 cloud template for Docker hosts
+	@echo "Creating Fedora 41 cloud template..."
+	@cd 04-docker-hosts/terraform-template && terraform init && terraform apply -auto-approve
+	@echo ""
+	@echo "=========================================="
+	@echo "✓ Template created! (VM ID: 9041)"
+	@echo "=========================================="
+	@echo ""
+	@echo "Next: Run 'make docker-hosts' to deploy VMs"
+	@echo ""
+
 # Step 5: Setup WireGuard VPN
 .PHONY: vpn-setup
 vpn-setup: ## Set up WireGuard VPN on OPNsense
@@ -114,7 +127,7 @@ vpn-client: ## Create VPN client config (usage: make vpn-client NAME=laptop IP=1
 
 # Complete setup
 .PHONY: all
-all: proxmox-config opnsense-setup docker-hosts vpn-setup ## Complete infrastructure setup
+all: proxmox-config opnsense-setup docker-template docker-hosts vpn-setup ## Complete infrastructure setup
 
 # Utilities
 .PHONY: detect-storage

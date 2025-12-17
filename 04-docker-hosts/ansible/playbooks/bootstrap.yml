@@ -68,21 +68,22 @@
         state: enabled
         immediate: true
 
-    - name: Configure automatic security updates
+    - name: Configure automatic security updates (DNF5)
       ansible.builtin.dnf:
-        name: dnf-automatic
+        name: dnf5-plugin-automatic
         state: present
 
-    - name: Configure dnf-automatic for security updates only
+    - name: Configure dnf5-automatic for security updates only
       ansible.builtin.lineinfile:
         path: /etc/dnf/automatic.conf
         regexp: "^upgrade_type"
         line: "upgrade_type = security"
         state: present
+        create: true
 
-    - name: Enable dnf-automatic timer
+    - name: Enable dnf5-automatic timer
       ansible.builtin.systemd:
-        name: dnf-automatic.timer
+        name: dnf5-automatic.timer
         enabled: true
         state: started
 
