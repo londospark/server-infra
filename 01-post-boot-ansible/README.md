@@ -1,6 +1,6 @@
 # Proxmox Bootstrap with Ansible
 
-This folder contains the post-installation automation for Proxmox VE. It sets up SSH access, creates the Terraform API token, switches to the community repository, configures bridges, and can deploy OPNsense from the nano image (no installer).
+This folder contains the post-installation automation for Proxmox VE. It sets up SSH access, (optionally) creates a Terraform API token, switches to the community repository, configures bridges, and reconfigures OPNsense LAN post-boot (after the VM is created from ISO or cloned from template via Ansible).
 
 > **Part of**: server-infra infrastructure automation suite. See the [main README](../README.md) for project overview and common setup.
 
@@ -40,10 +40,14 @@ Before running this playbook, ensure:
 
 ## Playbooks (order of execution)
 
-1. **01-bootstrap-access.yml** – install SSH key, create Terraform role/user/token, append token to `.envrc`
+1. **01-bootstrap-access.yml** – install SSH key, create Terraform role/user/token (optional legacy), append token to `.envrc`
 2. **02-remove-enterprise.yml** – switch Proxmox to community repo
 3. **03-network-bridges.yml** – ensure `vmbr1` exists (LAN bridge)
-4. **04-deploy-opnsense.yml** – download latest OPNsense nano image, import as VM (WAN=vmbr0, LAN=vmbr1), resize disk, start VM (defaults: LAN 192.168.1.1, creds `root/opnsense`)
+4. **04-deploy-opnsense.yml** – post-boot LAN reconfiguration for OPNsense
+   - expects OPNsense reachable via SSH
+   - typically run after the VM is cloned from template via `make infra`
+
+> `site.yml` runs 01-03; run 04 separately after OPNsense is installed and reachable.
 
 ## What the bootstrap playbook does (01)
 
@@ -59,8 +63,26 @@ Before running this playbook, ensure:
 ### From the Repository Root
 
 ```bash
-cd 01-post-boot-ansible/
-ansible-playbook -i inventory bootstrap_proxmox.yml
+# Preferred: use the Makefile wrapper
+make bootstrap
+
+# Or directly with Ansible
+ansible-playbook site.yml
+```
+
+### OPNsense LAN reconfiguration (04)
+
+Ensure:
+- The OPNsense VM exists (typically cloned from template via `make infra`)
+- SSH is enabled on OPNsense and reachable from your machine (either via WAN or LAN)
+- `OPNSENSE_HOST`, `OPNSENSE_USER`, and `OPNSENSE_PASS` are set in `.envrc`
+
+Then run:
+
+```bash
+make opnsense
+# or:
+ansible-playbook -i ../inventory 04-deploy-opnsense.yml
 ```
 
 ### What to Expect

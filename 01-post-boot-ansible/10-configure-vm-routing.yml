@@ -1,0 +1,82 @@
+---
+# Complete automation for VM network access
+- name: Configure routing between home network and OPNsense VMs
+  hosts: proxmox
+  become: true
+  gather_facts: false
+
+  vars:
+    opnsense_lan_network: "10.0.0.0/24"
+    opnsense_wan_ip: "192.168.1.75"
+
+  tasks:
+    - name: Enable IP forwarding on Proxmox
+      ansible.posix.sysctl:
+        name: net.ipv4.ip_forward
+        value: '1'
+        sysctl_set: true
+        state: present
+        reload: true
+
+    - name: Add route to OPNsense LAN network
+      ansible.builtin.command: >-
+        ip route add {{ opnsense_lan_network }}
+        via {{ opnsense_wan_ip }}
+        dev vmbr0
+      register: route_add
+      changed_when: route_add.rc == 0
+      failed_when: 
+        - route_add.rc != 0
+        - "'File exists' not in route_add.stderr"
+
+    - name: Make route persistent
+      ansible.builtin.lineinfile:
+        path: /etc/network/interfaces
+        insertafter: '^iface vmbr0 inet static'
+        line: "        post-up ip route add {{ opnsense_lan_network }} via {{ opnsense_wan_ip }} dev vmbr0 || true"
+        state: present
+
+- name: Configure OPNsense firewall and NAT
+  hosts: proxmox
+  become: true
+  gather_facts: false
+
+  tasks:
+    - name: Enable hybrid outbound NAT in OPNsense
+      ansible.builtin.shell: |
+        qm guest exec 100 -- pluginctl -s firewall reload NAT
+      register: nat_reload
+      changed_when: nat_reload.rc == 0
+      failed_when: false
+
+    - name: Configure OPNsense via configd
+      ansible.builtin.shell: |
+        qm guest exec 100 -- /usr/local/sbin/configctl filter reload
+      register: filter_reload
+      changed_when: filter_reload.rc == 0
+
+    - name: Display configuration status
+      ansible.builtin.debug:
+        msg: |
+          ✅ Proxmox routing configured!
+          ✅ OPNsense services reloaded!
+          
+          OPNsense has default NAT enabled, so VMs should already be able to reach internet.
+          
+          FINAL STEP - Add static route to your ASUS router:
+          
+          1. Browse to http://192.168.1.1
+          2. Login to router admin
+          3. Go to: LAN → Route tab
+          4. Enable static routes: Yes
+          5. Add route:
+             Network/Host IP: 10.0.0.0
+             Netmask: 255.255.255.0
+             Gateway: 192.168.1.75
+             Metric: 1
+          6. Click Apply
+          
+          Test from your PC:
+            ping 10.0.0.1
+          
+          Create a test VM on vmbr1 and it should get internet access!

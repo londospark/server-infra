@@ -6,10 +6,20 @@ provider "proxmox" {
   pm_minimum_permission_check = false
 }
 
+/*
 resource "proxmox_vm_qemu" "opnsense" {
   name        = "opnsense-router"
   target_node = "pve"
   vmid        = 100
+
+  # Clone from prebuilt OPNsense template (created from nano image)
+  clone      = var.opnsense_template_name
+  full_clone = true
+
+  # Let the template fully own disk layout; avoid Terraform trying to detach the cloned disk on re-apply
+  lifecycle {
+    ignore_changes = [disk, disks]
+  }
 
   # Basic Config
   os_type            = "other"
@@ -24,35 +34,6 @@ resource "proxmox_vm_qemu" "opnsense" {
   }
   memory = 4096
   scsihw = "virtio-scsi-pci"
-
-  # Boot Order
-  boot = "order=scsi0;ide2"
-
-  # --- 3.x SYNTAX: Nested 'disks' block ---
-  disks {
-    # Hard Drive (scsi0)
-    scsi {
-      scsi0 {
-        disk {
-          storage = "local-zfs"
-          size    = "32G"
-          # Fix: Use booleans (true/false) instead of 1/0 or "on"
-          iothread   = true
-          emulatessd = true # 'ssd' was renamed/aliased to this in some versions
-          discard    = true
-        }
-      }
-    }
-
-    # CD-ROM (ide2) - This is where the ISO lives now
-    ide {
-      ide2 {
-        cdrom {
-          iso = var.opnsense_iso
-        }
-      }
-    }
-  }
 
   # --- NETWORK: Requires explicit 'id' ---
 
@@ -72,3 +53,4 @@ resource "proxmox_vm_qemu" "opnsense" {
     firewall = false
   }
 }
+*/

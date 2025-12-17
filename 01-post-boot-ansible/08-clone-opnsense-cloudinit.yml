@@ -1,0 +1,182 @@
+---
+# Clone OPNsense VM from cloud-init template
+- name: Clone OPNsense VM from cloud-init template
+  hosts: proxmox
+  become: true
+
+  vars:
+    opnsense_template_vmid: "{{ lookup('env', 'OPNSENSE_TEMPLATE_VMID') | default('9000', true) }}"
+    opnsense_vm_vmid: "{{ lookup('env', 'OPNSENSE_VM_VMID') | default('100', true) }}"
+    opnsense_vm_name: "{{ lookup('env', 'OPNSENSE_VM_NAME') | default('opnsense-router', true) }}"
+    opnsense_vm_cores: "{{ lookup('env', 'OPNSENSE_VM_CORES') | default('2', true) }}"
+    opnsense_vm_memory: "{{ lookup('env', 'OPNSENSE_VM_MEMORY') | default('4096', true) }}"
+    opnsense_ssh_key: "{{ lookup('env', 'OPNSENSE_SSH_KEY') | default(lookup('file', lookup('env', 'HOME') + '/.ssh/id_ed25519.pub'), true) }}"
+    opnsense_wan_ip: "{{ lookup('env', 'OPNSENSE_WAN_IP') | default('dhcp', true) }}"
+    opnsense_lan_ip: "{{ lookup('env', 'OPNSENSE_LAN_IP') | default('192.168.20.1', true) }}"
+    opnsense_lan_mask: "{{ lookup('env', 'OPNSENSE_LAN_MASK') | default('24', true) }}"
+    opnsense_wan_gw: "{{ lookup('env', 'OPNSENSE_WAN_GW') | default('', true) }}"
+    opnsense_nameserver: "{{ lookup('env', 'OPNSENSE_NAMESERVER') | default('8.8.8.8', true) }}"
+    opnsense_storage: "{{ lookup('env', 'OPNSENSE_STORAGE') | default('local-zfs', true) }}"
+
+  pre_tasks:
+    - name: Construct LAN IP with CIDR notation
+      ansible.builtin.set_fact:
+        opnsense_lan_ip_cidr: "{{ opnsense_lan_ip }}/{{ opnsense_lan_mask }}"
+
+    - name: Display LAN IP configuration
+      ansible.builtin.debug:
+        msg: "LAN IP will be configured as: {{ opnsense_lan_ip_cidr }}"
+    - name: Check if template exists
+      ansible.builtin.command: qm status {{ opnsense_template_vmid }}
+      register: template_check
+      changed_when: false
+      failed_when: template_check.rc != 0
+
+    - name: Verify template is actually a template
+      ansible.builtin.command: qm config {{ opnsense_template_vmid }}
+      register: template_config
+      changed_when: false
+
+    - name: Fail if VM is not a template
+      ansible.builtin.fail:
+        msg: "VMID {{ opnsense_template_vmid }} exists but is not a template. Run 07-deploy-opnsense-cloudinit.yml first."
+      when: "'template: 1' not in template_config.stdout"
+
+  tasks:
+    - name: Check if target VM already exists
+      ansible.builtin.command: qm status {{ opnsense_vm_vmid }}
+      register: vm_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Stop existing VM if running
+      ansible.builtin.command: qm stop {{ opnsense_vm_vmid }}
+      when: 
+        - vm_exists.rc == 0
+        - "'running' in vm_exists.stdout"
+      register: vm_stopped
+      failed_when: false
+
+    - name: Wait for VM to stop
+      ansible.builtin.pause:
+        seconds: 5
+      when: vm_stopped.changed
+
+    - name: Remove existing VM if force recreate is set
+      ansible.builtin.command: qm destroy {{ opnsense_vm_vmid }} --purge
+      when:
+        - vm_exists.rc == 0
+        - lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool
+      register: vm_destroyed
+
+    - name: Clone OPNsense VM from template
+      ansible.builtin.command: >-
+        qm clone {{ opnsense_template_vmid }} {{ opnsense_vm_vmid }}
+        --name {{ opnsense_vm_name }}
+        --full 1
+        --storage {{ opnsense_storage }}
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Configure VM resources
+      ansible.builtin.command: >-
+        qm set {{ opnsense_vm_vmid }}
+        --cores {{ opnsense_vm_cores }}
+        --memory {{ opnsense_vm_memory }}
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Add second network interface for LAN
+      ansible.builtin.command: >-
+        qm set {{ opnsense_vm_vmid }}
+        --net1 virtio,bridge=vmbr1
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Create temporary file for SSH key
+      ansible.builtin.tempfile:
+        state: file
+        suffix: .pub
+      register: ssh_key_tempfile
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Write SSH key to temporary file
+      ansible.builtin.copy:
+        content: "{{ opnsense_ssh_key }}\n"
+        dest: "{{ ssh_key_tempfile.path }}"
+        mode: "0600"
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Configure cloud-init SSH keys
+      ansible.builtin.command: >-
+        qm set {{ opnsense_vm_vmid }}
+        --ciuser root
+        --sshkeys {{ ssh_key_tempfile.path }}
+        --nameserver {{ opnsense_nameserver }}
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Remove temporary SSH key file
+      ansible.builtin.file:
+        path: "{{ ssh_key_tempfile.path }}"
+        state: absent
+      when: ssh_key_tempfile.path is defined
+
+    - name: Configure WAN interface (DHCP)
+      ansible.builtin.command: >-
+        qm set {{ opnsense_vm_vmid }}
+        --ipconfig0 ip=dhcp
+      when: 
+        - vm_exists.rc != 0 or vm_destroyed.changed
+        - opnsense_wan_ip == 'dhcp'
+
+    - name: Configure WAN interface (Static IP)
+      ansible.builtin.command: >-
+        qm set {{ opnsense_vm_vmid }}
+        --ipconfig0 ip={{ opnsense_wan_ip }},gw={{ opnsense_wan_gw }}
+      when:
+        - vm_exists.rc != 0 or vm_destroyed.changed
+        - opnsense_wan_ip != 'dhcp'
+
+    - name: Configure LAN interface
+      ansible.builtin.command: >-
+        qm set {{ opnsense_vm_vmid }}
+        --ipconfig1 ip={{ opnsense_lan_ip_cidr }}
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Start OPNsense VM
+      ansible.builtin.command: qm start {{ opnsense_vm_vmid }}
+      register: vm_started
+      when: vm_exists.rc != 0 or vm_destroyed.changed
+
+    - name: Wait for VM to boot
+      ansible.builtin.pause:
+        seconds: 30
+      when: vm_started.changed
+
+    - name: Display VM information
+      ansible.builtin.debug:
+        msg: |
+          OPNsense VM cloned and started successfully!
+          
+          VM ID: {{ opnsense_vm_vmid }}
+          VM Name: {{ opnsense_vm_name }}
+          WAN IP: {{ opnsense_wan_ip }}
+          LAN IP: {{ opnsense_lan_ip_cidr }}
+          
+          The VM is now booting. Cloud-init will:
+          1. Configure network interfaces
+          2. Install your SSH public key
+          3. Generate a random root password
+          4. Log the encrypted password to /var/log/messages
+          
+          To retrieve the root password:
+          1. Wait ~2 minutes for cloud-init to complete
+          2. SSH into the VM: ssh root@<vm-ip>
+          3. Run: grep "Encrypted password" /var/log/messages | tail -1
+          4. Decrypt on your workstation:
+             echo "<encrypted-password>" | base64 -d | openssl rsautl -decrypt -inkey ~/.ssh/id_ed25519
+          
+          Access OPNsense web UI:
+          - WAN: https://{{ opnsense_wan_ip if opnsense_wan_ip != 'dhcp' else '<check-vm-ip>' }}
+          - LAN: https://{{ opnsense_lan_ip }}
+          
+          Default credentials:
+          - Username: root
+          - Password: Retrieved via SSH (see above)

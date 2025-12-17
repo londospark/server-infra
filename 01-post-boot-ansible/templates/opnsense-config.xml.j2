@@ -1,0 +1,68 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<opnsense>
+  <system>
+    <hostname>opnsense</hostname>
+    <domain>local</domain>
+    <user>
+      <name>root</name>
+      <descr>System Administrator</descr>
+      <scope>system</scope>
+      <groupname>admins</groupname>
+      <!-- bcrypt hash of 'opnsense' -->
+      <password>$2y$10$YRVoF4SgskIsrXOvOQjGieB9XqHPRra9R7d80B3BZdbY/j21TwBfS</password>
+      <uid>0</uid>
+      <expires/>
+      <otp_seed/>
+    </user>
+    <ssh>
+      <group>admins</group>
+      <noauto>1</noauto>
+      <interfaces>lan</interfaces>
+      <permitrootlogin>1</permitrootlogin>
+      <passwordauth>1</passwordauth>
+      <enabled>enabled</enabled>
+    </ssh>
+    <timezone>UTC</timezone>
+  </system>
+  <interfaces>
+    <wan>
+      <if>vtnet0</if>
+      <ipaddr>dhcp</ipaddr>
+      <descr>WAN</descr>
+    </wan>
+    <lan>
+      <if>vtnet1</if>
+      <ipaddr>{{ opnsense_lan_ip }}</ipaddr>
+      <subnet>{{ opnsense_lan_mask }}</subnet>
+      <descr>LAN</descr>
+    </lan>
+  </interfaces>
+  <filter>
+    <rule>
+      <type>pass</type>
+      <interface>lan</interface>
+      <ipprotocol>inet</ipprotocol>
+      <source><network>lan</network></source>
+      <destination><any/></destination>
+    </rule>
+    <rule>
+      <type>pass</type>
+      <interface>lan</interface>
+      <ipprotocol>inet6</ipprotocol>
+      <source><network>lan</network></source>
+      <destination><any/></destination>
+    </rule>
+  </filter>
+  <unbound>
+    <enabled>1</enabled>
+  </unbound>
+  <dhcpd>
+    <lan>
+      <enable>1</enable>
+      <range>
+        <from>10.0.0.100</from>
+        <to>10.0.0.254</to>
+      </range>
+    </lan>
+  </dhcpd>
+</opnsense>

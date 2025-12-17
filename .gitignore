@@ -5,3 +5,25 @@
 **/terraform.tfstate.backup
 **/.terraform/
 **/*.tfvars
+
+# Packer build outputs
+03-opnsense-image/output/
+03-opnsense-image/iso/
+03-opnsense-image/packer_cache/
+03-opnsense-image/*.qcow2
+
+# SSH keys
+**/*.pem
+**/*.key
+**/id_rsa*
+**/id_ed25519*
+!**/id_ed25519.pub.example
+
+# Ansible retry files
+**/*.retry
+
+# Secrets and credentials
+**/secrets/
+**/credentials/
+**/.vault_pass
+**/*_password.txt

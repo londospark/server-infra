@@ -6,18 +6,41 @@ if [ -z "$PROXMOX_HOST" ]; then
     exit 1
 fi
 
-cat <<EOF
-{
-  "proxmox": {
-    "hosts": ["$PROXMOX_HOST"]
-  },
-  "_meta": {
-    "hostvars": {
-      "$PROXMOX_HOST": {
-        "ansible_user": "root",
-        "ansible_python_interpreter": "/usr/bin/python3"
-      }
-    }
-  }
+python - <<'PY'
+import json
+import os
+import sys
+
+proxmox_host = os.environ["PROXMOX_HOST"]
+
+inventory = {
+    "proxmox": {"hosts": [proxmox_host]},
+    "_meta": {
+        "hostvars": {
+            proxmox_host: {
+                "ansible_user": "root",
+                "ansible_python_interpreter": "/usr/bin/python3",
+            }
+        }
+    },
 }
-EOF
+
+opnsense_host = os.environ.get("OPNSENSE_HOST")
+if opnsense_host:
+    inventory["opnsense"] = {"hosts": [opnsense_host]}
+    opnsense_user = os.environ.get("OPNSENSE_USER", "root")
+    opnsense_pass = os.environ.get("OPNSENSE_PASS", "opnsense")
+    opnsense_port = int(os.environ.get("OPNSENSE_PORT", "22"))
+    proxmox_user = os.environ.get("PROXMOX_USER", "root")
+
+    inventory["_meta"]["hostvars"][opnsense_host] = {
+        "ansible_user": opnsense_user,
+        "ansible_password": opnsense_pass,
+        "ansible_port": opnsense_port,
+        "ansible_python_interpreter": "/usr/local/bin/python3",
+        # Always reach OPNsense via Proxmox as a bastion to avoid direct SSH to LAN routers
+        "ansible_ssh_common_args": f"-o StrictHostKeyChecking=no -o ProxyJump={proxmox_user}@{proxmox_host}",
+    }
+
+json.dump(inventory, sys.stdout, indent=2)
+PY

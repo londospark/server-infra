@@ -1,113 +1,81 @@
 ---
-# Creates OPNsense VM from nano image - no installer needed
-- name: Deploy OPNsense from Nano Image
-  hosts: proxmox
-  become: true
+# Reconfigure OPNsense LAN IP post-boot (after the OPNsense VM is cloned from template and installed)
+- name: Configure OPNsense LAN network
+  hosts: opnsense
+  gather_facts: false
   vars:
-    mirror_base: "https://mirror.ams1.nl.leaseweb.net/opnsense/releases"
-    opnsense_vmid: 100
-    opnsense_name: "opnsense-router"
-    opnsense_memory: 4096
-    opnsense_cores: 2
-    opnsense_disk_storage: "local-zfs"
-    wan_bridge: "vmbr0"
-    lan_bridge: "vmbr1"
+    opnsense_lan_ip: "{{ lookup('env', 'OPNSENSE_LAN_IP') | default('10.0.0.1', true) }}"
+    opnsense_lan_mask: "{{ lookup('env', 'OPNSENSE_LAN_MASK') | default('24', true) }}"
+    opnsense_config_path: "/conf/config.xml"
+    opnsense_python: "/usr/local/bin/python3"
+
+  pre_tasks:
+    - name: Wait for SSH on OPNsense (default LAN 192.168.1.1)
+      ansible.builtin.wait_for:
+        host: "{{ inventory_hostname }}"
+        port: "{{ ansible_port | default(22) }}"
+        timeout: 180
+        state: started
+      delegate_to: localhost
+      become: false
 
   tasks:
-    - name: Detect latest OPNsense version
-      ansible.builtin.shell: |
-        curl -sL {{ mirror_base }}/ | grep -oE 'href="[0-9]+\.[0-9]+/"' | grep -oE '[0-9]+\.[0-9]+' | sort -V | tail -n1
-      register: latest_version_out
-      changed_when: false
+    - name: Back up current config.xml
+      ansible.builtin.raw: "cp {{ opnsense_config_path }} {{ opnsense_config_path }}.bak-$(date +%Y%m%d%H%M%S)"
+      changed_when: true
 
-    - name: Set version fact
-      ansible.builtin.set_fact:
-        opnsense_ver: "{{ latest_version_out.stdout }}"
+    - name: Update LAN IP and subnet in config.xml
+      ansible.builtin.raw: |
+        {{ opnsense_python }} - <<'PY'
+        import xml.etree.ElementTree as ET
 
-    - name: Fail if version not detected
-      ansible.builtin.fail:
-        msg: "Could not detect OPNsense version from mirror"
-      when: opnsense_ver == ""
+        path = "{{ opnsense_config_path }}"
+        target_ip = "{{ opnsense_lan_ip }}"
+        target_mask = "{{ opnsense_lan_mask }}"
 
-    - name: Display detected version
-      ansible.builtin.debug:
-        msg: "Deploying OPNsense {{ opnsense_ver }}"
+        tree = ET.parse(path)
+        root = tree.getroot()
+        lan = root.find("./interfaces/lan")
+        if lan is None:
+            raise SystemExit("LAN interface not found in config.xml")
 
-    - name: Check if VM already exists
-      ansible.builtin.command: qm status {{ opnsense_vmid }}
-      register: vm_exists
-      failed_when: false
-      changed_when: false
+        changed = False
 
-    - name: Deploy OPNsense VM
-      when: vm_exists.rc != 0
-      block:
-        - name: Ensure bzip2 is installed
-          ansible.builtin.apt:
-            name: bzip2
-            state: present
+        ip_node = lan.find("ipaddr")
+        if ip_node is None:
+            ip_node = ET.SubElement(lan, "ipaddr")
+        if ip_node.text != target_ip:
+            ip_node.text = target_ip
+            changed = True
 
-        - name: Download OPNsense nano image
-          ansible.builtin.get_url:
-            url: "{{ mirror_base }}/{{ opnsense_ver }}/OPNsense-{{ opnsense_ver }}-nano-amd64.img.bz2"
-            dest: "/tmp/opnsense-nano.img.bz2"
-            mode: '0644'
+        subnet_node = lan.find("subnet")
+        if subnet_node is None:
+            subnet_node = ET.SubElement(lan, "subnet")
+        if subnet_node.text != target_mask:
+            subnet_node.text = target_mask
+            changed = True
 
-        - name: Decompress image
-          ansible.builtin.shell: |
-            bzip2 -d -k -f /tmp/opnsense-nano.img.bz2
-          args:
-            creates: /tmp/opnsense-nano.img
+        if changed:
+            tree.write(path)
+            print("updated")
+        PY
+      register: lan_update
+      changed_when: "'updated' in lan_update.stdout"
+      failed_when: lan_update.rc != 0
 
-        - name: Create VM shell
-          ansible.builtin.command: >
-            qm create {{ opnsense_vmid }}
-            --name {{ opnsense_name }}
-            --memory {{ opnsense_memory }}
-            --cores {{ opnsense_cores }}
-            --cpu x86-64-v2-AES
-            --ostype other
-            --scsihw virtio-scsi-single
-            --net0 virtio,bridge={{ wan_bridge }},firewall=0
-            --net1 virtio,bridge={{ lan_bridge }},firewall=0
-            --onboot 1
-            --agent 0
+    - name: Apply interface configuration (async to survive IP change)
+      ansible.builtin.raw: /usr/local/etc/rc.reload_interfaces
+      async: 60
+      poll: 0
+      changed_when: "'updated' in lan_update.stdout"
+      when: "'updated' in lan_update.stdout"
 
-        - name: Import disk image to VM
-          ansible.builtin.command: >
-            qm importdisk {{ opnsense_vmid }} /tmp/opnsense-nano.img {{ opnsense_disk_storage }}
-          register: import_result
-
-        - name: Attach imported disk
-          ansible.builtin.command: >
-            qm set {{ opnsense_vmid }}
-            --scsi0 {{ opnsense_disk_storage }}:vm-{{ opnsense_vmid }}-disk-0
-            --boot order=scsi0
-
-        - name: Resize disk to 32G
-          ansible.builtin.command: >
-            qm resize {{ opnsense_vmid }} scsi0 32G
-
-        - name: Cleanup downloaded files
-          ansible.builtin.file:
-            path: "{{ item }}"
-            state: absent
-          loop:
-            - /tmp/opnsense-nano.img.bz2
-            - /tmp/opnsense-nano.img
-
-        - name: Start OPNsense VM
-          ansible.builtin.command: qm start {{ opnsense_vmid }}
-
-        - name: Display success message
-          ansible.builtin.debug:
-            msg: |
-              OPNsense {{ opnsense_ver }} deployed as VM {{ opnsense_vmid }}
-              Default LAN IP: 192.168.1.1
-              Default credentials: root / opnsense
-              Configure via console or web UI at https://192.168.1.1
-
-    - name: VM already exists
-      when: vm_exists.rc == 0
-      ansible.builtin.debug:
-        msg: "VM {{ opnsense_vmid }} already exists. Skipping deployment."
+    - name: Wait for new LAN IP to answer SSH
+      ansible.builtin.wait_for:
+        host: "{{ opnsense_lan_ip }}"
+        port: "{{ ansible_port | default(22) }}"
+        timeout: 180
+        state: started
+      delegate_to: localhost
+      become: false
+      when: "'updated' in lan_update.stdout"

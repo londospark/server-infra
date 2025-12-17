@@ -1,0 +1,54 @@
+Add OPNsense cloud-init image builder and automated deployment
+
+This commit integrates the open-images/opnsense Packer workflow to build
+cloud-init-enabled OPNsense images for Proxmox, replacing the manual nano
+image deployment process with a fully automated solution.
+
+Key additions:
+
+1. Packer-based Image Builder (03-opnsense-image/):
+   - Automated OPNsense DVD ISO download and build
+   - Cloud-init integration with NoCloud datasource
+   - QEMU Guest Agent for enhanced Proxmox integration
+   - First-boot script for SSH key injection
+   - Idempotent builds with proper cleanup
+
+2. Ansible Playbooks (01-post-boot-ansible/):
+   - 00-detect-storage.yml: Auto-detect Proxmox storage backend
+   - 05-opnsense-template.yml: Legacy nano image template creation
+   - 06-clone-opnsense.yml: Legacy VM cloning
+   - 07-deploy-opnsense-cloudinit.yml: Cloud-init template deployment
+   - 08-clone-opnsense-cloudinit.yml: Cloud-init VM cloning with network config
+   - 10-configure-vm-routing.yml: Single-NIC homelab routing setup
+   - 11-fix-opnsense-firewall.yml: Firewall configuration
+   - 12-fix-opnsense-ssh.yml: SSH key injection fix
+   - 14-network-diagnostics.yml: Network troubleshooting tools
+   - 15-opnsense-set-password.yml: Web UI admin user creation
+
+3. Makefile Targets:
+   - opnsense-cloudinit-template: Build and deploy cloud-init template
+   - opnsense-cloudinit-vm: Clone VM from template
+   - opnsense-set-password: Create admin user for web UI
+   - opnsense-routing: Configure routing for VM access from home network
+   - Idempotent operations with dependency checking
+
+4. Documentation Updates:
+   - Complete workflow documentation in README.md
+   - Detailed 03-opnsense-image/README.md with troubleshooting
+   - Updated .envrc.example with new OPNsense variables
+   - Single-NIC homelab deployment instructions
+
+Features:
+- ✅ Fully automated OPNsense deployment
+- ✅ SSH key injection via cloud-init
+- ✅ Configurable WAN (DHCP/static) and LAN (static) interfaces
+- ✅ Admin user creation for web UI access
+- ✅ Routing configuration for homelab VM access
+- ✅ Support for both legacy nano and cloud-init workflows
+- ✅ Idempotent operations throughout
+
+Breaking Changes:
+- Renamed id_rsa.pub references to id_ed25519.pub (modern SSH key standard)
+- Storage backend now auto-detected instead of hardcoded to local-lvm
+
+Credits: Based on gitlab.com/open-images/opnsense by Kevin Allioli

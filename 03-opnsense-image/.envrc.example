@@ -1,0 +1,39 @@
+# OPNsense Cloud-Init Build Configuration
+
+# OPNsense version to build (format: XX.X)
+# Check available versions at: https://opnsense.org/download/
+export PKR_VAR_VERSION="25.7"
+
+# Mirror URL for downloading OPNsense ISOs
+# Available mirrors: https://opnsense.org/download/
+# Default: https://mirror.init7.net/opnsense
+export PKR_VAR_MIRROR="https://mirror.init7.net/opnsense"
+
+# ISO checksum for verification (format: <algorithm>:<hash>)
+# Find checksums at: ${PKR_VAR_MIRROR}/releases/${PKR_VAR_VERSION}/
+export PKR_VAR_ISO_CHECKSUM="sha1:e388904d39e4e9604a89111b8410c98474782a41"
+
+# Template configuration for Proxmox deployment
+export OPNSENSE_VERSION="25.7"
+export OPNSENSE_TEMPLATE_VMID="9000"
+export OPNSENSE_TEMPLATE_NAME="opnsense-cloudinit-template"
+export OPNSENSE_STORAGE="local-lvm"
+
+# VM deployment configuration
+export OPNSENSE_VM_VMID="100"
+export OPNSENSE_VM_NAME="opnsense-router"
+export OPNSENSE_VM_CORES="2"
+export OPNSENSE_VM_MEMORY="4096"
+
+# Network configuration for cloud-init deployment
+export OPNSENSE_WAN_IP="dhcp"              # or "192.168.1.10/24"
+export OPNSENSE_WAN_GW=""                  # Gateway for static IP
+export OPNSENSE_LAN_IP="192.168.20.1"      # LAN IP address (without mask)
+export OPNSENSE_LAN_MASK="24"              # LAN subnet mask (CIDR notation)
+export OPNSENSE_NAMESERVER="8.8.8.8"
+
+# SSH key for cloud-init (leave empty to use default ~/.ssh/id_rsa.pub)
+export OPNSENSE_SSH_KEY=""
+
+# Set to "1" to force recreation of template/VM even if it exists
+export OPNSENSE_FORCE_RECREATE="0"

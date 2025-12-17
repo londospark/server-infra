@@ -1,0 +1,23 @@
+# Packer build artifacts
+output/
+*.qcow2
+packer_cache/
+
+# Downloaded ISOs
+iso/
+*.iso
+*.iso.bz2
+
+# Packer logs
+*.log
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# Editor files
+*.swp
+*.swo
+*~
+.vscode/
+.idea/

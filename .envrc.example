@@ -14,3 +14,18 @@ export GATEWAY="{{Gateway IP Address}}"
 # --- TERRAFORM CONFIGURATION ---
 export TF_VAR_proxmox_api_endpoint="https://${PROXMOX_HOST}:8006/api2/json"
 # The token will be appended below by Ansible...
+
+# --- OPNsense POST-BOOT CONFIG ---
+# OPNsense starts on 192.168.1.1 by default; these are used by the post-boot playbook
+export OPNSENSE_HOST="192.168.1.1"
+export OPNSENSE_USER="root"
+export OPNSENSE_PASS="opnsense"
+export OPNSENSE_PORT="22"
+# Desired LAN network (post-boot target)
+export OPNSENSE_LAN_IP="10.0.0.1"
+export OPNSENSE_LAN_MASK="24"
+
+# --- OPNsense CLOUD-INIT ADMIN USER ---
+# Admin user credentials for OPNsense web UI
+export OPNSENSE_ADMIN_USER="admin"
+export OPNSENSE_ADMIN_PASSWORD="changeme_please"

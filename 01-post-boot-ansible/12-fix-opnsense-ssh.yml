@@ -1,0 +1,42 @@
+---
+# Fix SSH key installation on OPNsense
+- name: Install SSH key on OPNsense
+  hosts: proxmox
+  become: true
+  gather_facts: false
+
+  vars:
+    ssh_public_key: "{{ lookup('file', lookup('env', 'HOME') + '/.ssh/id_ed25519.pub') }}"
+
+  tasks:
+    - name: Create .ssh directory on OPNsense
+      ansible.builtin.shell: |
+        qm guest exec 100 -- /bin/sh -c 'mkdir -p /root/.ssh && chmod 700 /root/.ssh'
+      changed_when: true
+
+    - name: Install SSH public key
+      ansible.builtin.shell: |
+        qm guest exec 100 -- /bin/sh -c 'echo "{{ ssh_public_key }}" > /root/.ssh/authorized_keys && chmod 600 /root/.ssh/authorized_keys'
+      changed_when: true
+
+    - name: Verify SSH key was installed
+      ansible.builtin.shell: |
+        qm guest exec 100 -- cat /root/.ssh/authorized_keys
+      register: key_check
+      changed_when: false
+
+    - name: Display result
+      ansible.builtin.debug:
+        msg: |
+          ✅ SSH key installed on OPNsense!
+          
+          You can now SSH directly:
+            ssh -J root@192.168.1.2 root@10.0.0.1
+          
+          Or add to ~/.ssh/config:
+            Host opnsense
+                HostName 10.0.0.1
+                User root
+                ProxyJump root@192.168.1.2
+          
+          Then simply: ssh opnsense

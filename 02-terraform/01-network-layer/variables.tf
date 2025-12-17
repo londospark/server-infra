@@ -12,8 +12,9 @@ variable "proxmox_api_token_secret" {
   sensitive = true
 }
 
-# Optional: Customize if you downloaded a different version
-variable "opnsense_iso" {
+# OPNsense template created from nano image
+variable "opnsense_template_name" {
   type        = string
-  description = "The OPNsense ISO image to use for the VM installation."
+  description = "The name of the OPNsense template VM to clone from (created from nano image)"
+  default     = "opnsense-template"
 }

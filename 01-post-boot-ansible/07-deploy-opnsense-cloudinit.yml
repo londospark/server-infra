@@ -1,0 +1,119 @@
+---
+# Deploy OPNsense cloud-init image to Proxmox and create template
+- name: Deploy OPNsense cloud-init image to Proxmox
+  hosts: proxmox
+  become: true
+
+  vars:
+    opnsense_version: "{{ lookup('env', 'OPNSENSE_VERSION') | default('25.7', true) }}"
+    opnsense_image_source: "{{ lookup('env', 'OPNSENSE_IMAGE_SOURCE') | default('../03-opnsense-image/output/opnsense-' + opnsense_version + '-proxmox.qcow2', true) }}"
+    opnsense_template_vmid: "{{ lookup('env', 'OPNSENSE_TEMPLATE_VMID') | default('9000', true) }}"
+    opnsense_template_name: "{{ lookup('env', 'OPNSENSE_TEMPLATE_NAME') | default('opnsense-cloudinit-template', true) }}"
+    opnsense_storage: "{{ lookup('env', 'OPNSENSE_STORAGE') | default('local-zfs', true) }}"
+    opnsense_img_dir: "/var/lib/vz/template/qcow"
+
+  tasks:
+    - name: Ensure qcow template directory exists
+      ansible.builtin.file:
+        path: "{{ opnsense_img_dir }}"
+        state: directory
+        mode: "0755"
+
+    - name: Check if OPNsense image exists locally
+      ansible.builtin.stat:
+        path: "{{ opnsense_image_source }}"
+      delegate_to: localhost
+      become: false
+      register: local_image
+
+    - name: Fail if local image not found
+      ansible.builtin.fail:
+        msg: "OPNsense image not found at {{ opnsense_image_source }}. Run 'cd 03-opnsense-image && packer build .' first."
+      when: not local_image.stat.exists
+
+    - name: Upload OPNsense cloud-init image to Proxmox
+      ansible.builtin.copy:
+        src: "{{ opnsense_image_source }}"
+        dest: "{{ opnsense_img_dir }}/opnsense-{{ opnsense_version }}-cloudinit.qcow2"
+        mode: "0644"
+      register: image_upload
+
+    - name: Check if template VM already exists
+      ansible.builtin.command: qm status {{ opnsense_template_vmid }}
+      register: vm_exists
+      changed_when: false
+      failed_when: false
+
+    - name: Remove existing template if it exists
+      ansible.builtin.command: qm destroy {{ opnsense_template_vmid }} --purge
+      when: 
+        - vm_exists.rc == 0
+        - image_upload.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+
+    - name: Create OPNsense template VM
+      ansible.builtin.command: >-
+        qm create {{ opnsense_template_vmid }}
+        --name {{ opnsense_template_name }}
+        --memory 2048
+        --cores 2
+        --sockets 1
+        --net0 virtio,bridge=vmbr0
+        --scsihw virtio-scsi-pci
+        --ostype other
+        --agent enabled=1
+        --serial0 socket
+        --vga serial0
+      register: qm_create
+      when: vm_exists.rc != 0 or image_upload.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+
+    - name: Import OPNsense disk to storage
+      ansible.builtin.command: >-
+        qm importdisk {{ opnsense_template_vmid }}
+        {{ opnsense_img_dir }}/opnsense-{{ opnsense_version }}-cloudinit.qcow2
+        {{ opnsense_storage }}
+        --format qcow2
+      register: qm_import
+      when: qm_create.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+
+    - name: Get VM configuration
+      ansible.builtin.command: qm config {{ opnsense_template_vmid }}
+      register: qm_config
+      changed_when: false
+
+    - name: Extract imported disk volume
+      ansible.builtin.set_fact:
+        opnsense_disk_volume: "{{ (qm_config.stdout_lines | select('match', '^(scsi0|unused[0-9]+):') | list | first).split(': ', 2)[1] }}"
+
+    - name: Attach disk as scsi0 and add cloud-init drive
+      ansible.builtin.command: >-
+        qm set {{ opnsense_template_vmid }}
+        --scsihw virtio-scsi-pci
+        --scsi0 {{ opnsense_disk_volume }}
+        --ide2 {{ opnsense_storage }}:cloudinit
+        --boot order=scsi0
+        --bootdisk scsi0
+      register: qm_set
+      changed_when: qm_set.rc == 0
+      when: qm_import.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+
+    - name: Convert VM to template
+      ansible.builtin.command: qm template {{ opnsense_template_vmid }}
+      when: qm_create.changed or (lookup('env', 'OPNSENSE_FORCE_RECREATE') | default('false', true) | bool)
+
+    - name: Display template information
+      ansible.builtin.debug:
+        msg: |
+          OPNsense cloud-init template created successfully!
+          
+          Template ID: {{ opnsense_template_vmid }}
+          Template Name: {{ opnsense_template_name }}
+          Storage: {{ opnsense_storage }}
+          Version: {{ opnsense_version }}
+          
+          To clone a VM from this template:
+          qm clone {{ opnsense_template_vmid }} <new-vmid> --name <vm-name> --full 1
+          
+          Or use the Ansible playbook:
+          ansible-playbook 01-post-boot-ansible/08-clone-opnsense-cloudinit.yml
+          
+          Or use Terraform (see 02-terraform/02-opnsense-cloudinit/)
