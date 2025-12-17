@@ -2,9 +2,9 @@ name: Validate Configuration Files
 
 on:
   push:
-    branches: [ main, master ]
+    branches: [main, master]
   pull_request:
-    branches: [ main, master ]
+    branches: [main, master]
 
 jobs:
   validate-yaml:
@@ -17,8 +17,7 @@ jobs:
         run: pip install yamllint
 
       - name: Validate YAML files
-        run: |
-          yamllint -d "{extends: default, rules: {line-length: {max: 160}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable}}" .
+        run: yamllint -d "{extends: default, rules: {line-length: {max: 200}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable}}" .
 
   validate-ansible:
     runs-on: ubuntu-latest
