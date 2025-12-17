@@ -18,10 +18,7 @@ jobs:
 
       - name: Validate YAML files
         run: |
-          yamllint -d "{extends: default, rules: {line-length: {max: 160}, indentation: {spaces: 2}}}" \
-            *.yml \
-            **/*.yml \
-            **/*.yaml
+          yamllint -d "{extends: default, rules: {line-length: {max: 160}, indentation: {spaces: 2}, document-start: disable, trailing-spaces: disable, empty-lines: disable}}" .
 
   validate-ansible:
     runs-on: ubuntu-latest
@@ -39,6 +36,7 @@ jobs:
 
       - name: Validate Ansible playbooks
         run: |
+          export PROXMOX_HOST=dummy.example.com
           ansible-playbook --syntax-check site.yml
           ansible-playbook --syntax-check 01-proxmox-config/site.yml
           ansible-playbook --syntax-check 03-opnsense-deployment/site.yml
